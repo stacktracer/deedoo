@@ -1,0 +1,22 @@
+{
+  "private": true,
+  "browser": "build/dist/main.js",
+  "files": [
+    "build/dist/**"
+  ],
+  "scripts": {
+    "clean": "shx rm -rf build/",
+    "build": "run-s build:compile build:bundle build:static",
+    "build:compile": "tsc --project src/tsconfig.json",
+    "build:bundle": "rollup --config rollup.config.mjs",
+    "build:static": "cpx \"src/**/*.{html,css,ico}\" build/dist/ -v"
+  },
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^15.0.1",
+    "cpx2": "^4.2.0",
+    "npm-run-all": "^4.1.5",
+    "rollup": "^3.17.2",
+    "shx": "^0.3.4",
+    "typescript": "^4.9.5"
+  }
+}

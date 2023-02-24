@@ -1,0 +1,18 @@
+{
+  "extends": "@tsconfig/node18-strictest-esm/tsconfig.json",
+  "ts-node": {
+    "transpileOnly": true,
+    "files": true,
+  },
+  "compilerOptions": {
+    "allowJs": false,
+    "checkJs": false,
+    "alwaysStrict": true,
+    "noImplicitAny": true,
+    "noImplicitThis": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "useUnknownInCatchVariables": true,
+    "strictPropertyInitialization": true,
+  }
+}
