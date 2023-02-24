@@ -1,7 +1,9 @@
 export default {
     serve: {
         host: '127.0.0.1',
-        port: 8080,
+        port: 8443,
+        certFile: 'FIXME',
+        keyFile: 'FIXME',
     },
     mqtt: {
         protocol: 'mqtts',

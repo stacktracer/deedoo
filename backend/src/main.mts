@@ -1,7 +1,8 @@
 import MQTT from 'async-mqtt';
 import express from 'express';
 import { SSE } from 'express-sse';
-import http from 'http';
+import fs from 'fs';
+import https from 'https';
 import type { AddressInfo } from 'net';
 import { isDeepStrictEqual } from 'util';
 import conf from './config.mjs';
@@ -142,8 +143,10 @@ const uiHandler = express.static( uiDir );
 const app = express( );
 app.use( '/ui', uiHandler );
 app.use( '/api', apiHandler );
-const server = http.createServer( app );
+const httpsKey = fs.readFileSync( conf.serve.keyFile );
+const httpsCert = fs.readFileSync( conf.serve.certFile );
+const server = https.createServer( { key: httpsKey, cert: httpsCert }, app );
 server.on( 'listening', ( ) => {
-    logListenAddr( requireNonNullish( server.address( ) ) as AddressInfo );
+    logListenAddr( requireNonNullish( server.address( ) ) as AddressInfo, true );
 } );
 server.listen( conf.serve.port, conf.serve.host );

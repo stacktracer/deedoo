@@ -14,7 +14,7 @@ export function requireNonNullish<T>( t: T | null | undefined ): T {
     return t;
 }
 
-export function logListenAddr( addrInfo: AddressInfo ) {
+export function logListenAddr( addrInfo: AddressInfo, isHttps: boolean ) {
     const { family, address, port } = addrInfo;
 
     // Log the KNOWN interfaces we're listening on
@@ -24,7 +24,7 @@ export function logListenAddr( addrInfo: AddressInfo ) {
         for ( const ifaceAddr of ifaceAddrs ?? [] ) {
             if ( ifaceAddr.family === family && ( isAllInterfaces || ifaceAddr.address === address ) ) {
                 const ifaceUrl = url.format( {
-                    protocol: 'http',
+                    protocol: ( isHttps ? 'https' : 'http' ),
                     hostname: ( family === 'IPv4' ? ifaceAddr.address : `[${ifaceAddr.address}]` ),
                     port,
                 } );
