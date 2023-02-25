@@ -1,7 +1,7 @@
-import type { Conf } from './misc.mjs';
+import type { DeedooConf } from './misc.mjs';
 
-const conf: Conf = {
-    serve: {
+const conf: DeedooConf = {
+    https: {
         host: '127.0.0.1',
         port: 8443,
         certFile: 'FIXME',
@@ -21,9 +21,9 @@ const conf: Conf = {
     },
     shelly: {
         deviceName: 'shellyplus2pm-FIXME',
-        sensorForDoorFullyOpen: 0,
-        sensorForDoorFullyClosed: 1,
-        relayForClick: 0,
+        inputForDoorFullyOpen: { sensor: 0, state: true },
+        inputForDoorFullyClosed: { sensor: 1, state: false },
+        outputForClick: { relay: 0, state: true },
     },
 };
 

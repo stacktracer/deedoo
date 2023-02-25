@@ -3,30 +3,36 @@ import type { AddressInfo } from 'net';
 import os from 'os';
 import url from 'url';
 
-export interface Conf {
-    serve: {
-        host: string;
-        port: number;
-        certFile: string;
-        keyFile: string;
-        cookieSigningSecret: string;
-        auth: Record<string,string>,
-    };
-    mqtt: {
-        protocol: string;
-        host: string;
-        port: number;
-        clientId: string;
-        username: string;
-        password: string;
-    };
-    shelly: {
-        deviceName: string;
-        sensorForDoorFullyOpen: ShellySensorNum;
-        sensorForDoorFullyClosed: ShellySensorNum;
-        relayForClick: ShellyRelayNum;
-    };
-};
+export interface DeedooConf {
+    https: HttpsConf;
+    mqtt: MqttConf;
+    shelly: ShellyConf;
+}
+
+export interface HttpsConf {
+    host: string;
+    port: number;
+    certFile: string;
+    keyFile: string;
+    cookieSigningSecret: string;
+    auth: Record<string,string>;
+}
+
+export interface MqttConf {
+    protocol: string;
+    host: string;
+    port: number;
+    clientId: string;
+    username: string;
+    password: string;
+}
+
+export interface ShellyConf {
+    deviceName: string;
+    inputForDoorFullyOpen: { sensor: ShellySensorNum, state: boolean };
+    inputForDoorFullyClosed: { sensor: ShellySensorNum, state: boolean };
+    outputForClick: { relay: ShellyRelayNum, state: boolean };
+}
 
 export function isNullish( t: unknown ): t is null | undefined {
     return ( t === null || t === undefined );
@@ -96,10 +102,13 @@ export function sendShellyStatusRequest( mqtt: AsyncMqttClient, shellyDevice: st
     } ), { qos: 2 } );
 }
 
-export function sendShellyClick( mqtt: AsyncMqttClient, shellyDevice: string, relayNum: ShellyRelayNum ): Promise<void> {
-    return mqtt.publish( `${shellyDevice}/rpc`, JSON.stringify( {
+export function sendShellyClick( mqtt: AsyncMqttClient, conf: ShellyConf ): Promise<void> {
+    return mqtt.publish( `${conf.deviceName}/rpc`, JSON.stringify( {
         method: 'Switch.Set',
-        params: { id: relayNum, on: true },
+        params: {
+            id: conf.outputForClick.relay,
+            on: conf.outputForClick.state,
+        },
     } ), { qos: 2 } );
 }
 
@@ -200,16 +209,9 @@ export function getRelayNotifyStates( notify: ShellyNotify ): Map<ShellyRelayNum
 
 export type DoorState = 'FULLY_OPEN' | 'FULLY_CLOSED' | 'PARTWAY' | 'ERROR' | 'UNKNOWN';
 
-export interface ShellyConfig {
-    deviceName: string;
-    sensorForDoorFullyOpen: ShellySensorNum;
-    sensorForDoorFullyClosed: ShellySensorNum;
-    relayForClick: ShellyRelayNum;
-}
-
-export function getDoorState( conf: ShellyConfig, sensorStates: Map<ShellySensorNum,boolean> ): DoorState {
-    const isFullyOpen = sensorStates.get( conf.sensorForDoorFullyOpen );
-    const isFullyClosed = sensorStates.get( conf.sensorForDoorFullyClosed );
+export function getDoorState( conf: ShellyConf, sensorStates: Map<ShellySensorNum,boolean> ): DoorState {
+    const isFullyOpen = ( sensorStates.get( conf.inputForDoorFullyOpen.sensor ) === conf.inputForDoorFullyOpen.state );
+    const isFullyClosed = ( sensorStates.get( conf.inputForDoorFullyClosed.sensor ) === conf.inputForDoorFullyClosed.state );
     if ( isFullyOpen === undefined || isFullyClosed === undefined ) {
         return 'UNKNOWN';
     }

@@ -20,6 +20,8 @@ const mqtt = await MQTT.connectAsync( conf.mqtt );
 // TODO: Request Shelly status periodically
 // TODO: Check periodically whether we've heard from Shelly recently
 
+// FIXME: Subscribe to shelly-is-online topic
+
 interface Model {
     isBackendConnectedToMqtt: boolean;
     doorState: DoorState;
@@ -63,7 +65,7 @@ mqtt.on( 'message', async ( _, payload ) => {
     const json = JSON.parse( payload.toString( 'utf8' ) );
     if ( isShellyStatus( json ) ) {
         for ( const [ sensor, state ] of getSensorStatusStates( json ) ) {
-            if ( sensor === conf.shelly.sensorForDoorFullyOpen || sensor === conf.shelly.sensorForDoorFullyClosed ) {
+            if ( sensor === conf.shelly.inputForDoorFullyOpen.sensor || sensor === conf.shelly.inputForDoorFullyClosed.sensor ) {
                 const oldDoorState = getDoorState( conf.shelly, sensorStates );
                 sensorStates.set( sensor, state );
                 const newDoorState = getDoorState( conf.shelly, sensorStates );
@@ -74,7 +76,7 @@ mqtt.on( 'message', async ( _, payload ) => {
     }
     else if ( isShellyNotify( json ) ) {
         for ( const [ sensor, state ] of getSensorNotifyStates( json ) ) {
-            if ( sensor === conf.shelly.sensorForDoorFullyOpen || sensor === conf.shelly.sensorForDoorFullyClosed ) {
+            if ( sensor === conf.shelly.inputForDoorFullyOpen.sensor || sensor === conf.shelly.inputForDoorFullyClosed.sensor ) {
                 const oldDoorState = getDoorState( conf.shelly, sensorStates );
                 sensorStates.set( sensor, state );
                 const newDoorState = getDoorState( conf.shelly, sensorStates );
@@ -83,7 +85,7 @@ mqtt.on( 'message', async ( _, payload ) => {
             }
         }
         for ( const [ relay, state ] of getRelayNotifyStates( json ) ) {
-            if ( relay === conf.shelly.relayForClick && state === true ) {
+            if ( relay === conf.shelly.outputForClick.relay && state === conf.shelly.outputForClick.state ) {
                 const newClickTs = json.params.ts;
                 console.log( `Relay notify: relay = ${relay}, click-ts = ${newClickTs}` );
                 setModelProp( 'recentClickTs', newClickTs );
@@ -105,7 +107,7 @@ apiHandler.post( '/open', async ( _, resp ) => {
     const doorState = getDoorState( conf.shelly, sensorStates );
     const willExecute = ( doorState === 'FULLY_CLOSED' );
     if ( willExecute ) {
-        await sendShellyClick( mqtt, conf.shelly.deviceName, conf.shelly.relayForClick );
+        await sendShellyClick( mqtt, conf.shelly );
     }
     console.log( `${willExecute ? 'Executing' : 'Ignoring'} cmd OPEN: door-state = ${doorState}` );
     resp.status( 200 ).json( { actionTaken: willExecute, priorDoorState: doorState } );
@@ -115,7 +117,7 @@ apiHandler.post( '/close', async ( _, resp ) => {
     const doorState = getDoorState( conf.shelly, sensorStates );
     const willExecute = ( doorState === 'FULLY_OPEN' );
     if ( willExecute ) {
-        await sendShellyClick( mqtt, conf.shelly.deviceName, conf.shelly.relayForClick );
+        await sendShellyClick( mqtt, conf.shelly );
     }
     console.log( `${willExecute ? 'Executing' : 'Ignoring'} cmd CLOSE: door-state = ${doorState}` );
     resp.status( 200 ).json( { actionTaken: willExecute, priorDoorState: doorState } );
@@ -125,7 +127,7 @@ apiHandler.post( '/click', async ( _, resp ) => {
     const doorState = getDoorState( conf.shelly, sensorStates );
     const willExecute = true;
     if ( willExecute ) {
-        await sendShellyClick( mqtt, conf.shelly.deviceName, conf.shelly.relayForClick );
+        await sendShellyClick( mqtt, conf.shelly );
     }
     console.log( `${willExecute ? 'Executing' : 'Ignoring'} cmd CLICK: door-state = ${doorState}` );
     resp.status( 200 ).json( { actionTaken: willExecute, priorDoorState: doorState } );
@@ -137,12 +139,12 @@ const uiDir = new URL( '../../frontend/build/dist/', import.meta.url ).pathname;
 const uiHandler = express.static( uiDir );
 
 
-// Serve
+// HTTPS
 const app = express( );
-app.use( cookieParser( conf.serve.cookieSigningSecret ) );
+app.use( cookieParser( conf.https.cookieSigningSecret ) );
 const auth: RequestHandler = ( req, resp, next ) => {
     // Client provided a signed cookie for a recognized user
-    if ( req.signedCookies[ 'user' ] && conf.serve.auth[ req.signedCookies[ 'user' ] ] ) {
+    if ( req.signedCookies[ 'user' ] && conf.https.auth[ req.signedCookies[ 'user' ] ] ) {
         next( );
         return;
     }
@@ -150,7 +152,7 @@ const auth: RequestHandler = ( req, resp, next ) => {
     // Client didn't provide a cookie, but did provide credentials
     if ( req.headers.authorization ) {
         const [ username, password ] = parseAuthHeader( req.headers.authorization );
-        if ( username && conf.serve.auth[ username ] && password === conf.serve.auth[ username ] ) {
+        if ( username && conf.https.auth[ username ] && password === conf.https.auth[ username ] ) {
             resp.cookie( 'user', username, {
                 sameSite: 'strict',
                 httpOnly: true,
@@ -172,10 +174,10 @@ const auth: RequestHandler = ( req, resp, next ) => {
 };
 app.use( '/ui', auth, uiHandler );
 app.use( '/api', auth, apiHandler );
-const httpsKey = fs.readFileSync( conf.serve.keyFile );
-const httpsCert = fs.readFileSync( conf.serve.certFile );
+const httpsKey = fs.readFileSync( conf.https.keyFile );
+const httpsCert = fs.readFileSync( conf.https.certFile );
 const server = https.createServer( { key: httpsKey, cert: httpsCert }, app );
 server.on( 'listening', ( ) => {
     logListenAddr( requireNonNullish( server.address( ) ) as AddressInfo, true );
 } );
-server.listen( conf.serve.port, conf.serve.host );
+server.listen( conf.https.port, conf.https.host );
