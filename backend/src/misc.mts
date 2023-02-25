@@ -3,6 +3,31 @@ import type { AddressInfo } from 'net';
 import os from 'os';
 import url from 'url';
 
+export interface Conf {
+    serve: {
+        host: string;
+        port: number;
+        certFile: string;
+        keyFile: string;
+        cookieSigningSecret: string;
+        auth: Record<string,string>,
+    };
+    mqtt: {
+        protocol: string;
+        host: string;
+        port: number;
+        clientId: string;
+        username: string;
+        password: string;
+    };
+    shelly: {
+        deviceName: string;
+        sensorForDoorFullyOpen: ShellySensorNum;
+        sensorForDoorFullyClosed: ShellySensorNum;
+        relayForClick: ShellyRelayNum;
+    };
+};
+
 export function isNullish( t: unknown ): t is null | undefined {
     return ( t === null || t === undefined );
 }
@@ -42,6 +67,21 @@ export function logListenAddr( addrInfo: AddressInfo, isHttps: boolean ) {
             port,
         } );
         console.log( `Listening at ${addrUrl} (???)` );
+    }
+}
+
+function requireTwoTuple( array: Array<string> ): [ string, string ] {
+    if ( array.length !== 2 ) {
+        throw new Error( 'Not a 2-tuple: ' + JSON.stringify( array ) );
+    }
+    return ( array as [ string, string ] );
+}
+
+export function parseAuthHeader( authHeader: string ): [ username: string, password: string ] {
+    const [ scheme, params ] = requireTwoTuple( authHeader.split( ' ' ) );
+    switch ( scheme ) {
+        case 'Basic': return requireTwoTuple( Buffer.from( params, 'base64' ).toString( ).split( ':' ) );
+        default: throw new Error( 'Auth scheme not supported: ' + scheme );
     }
 }
 

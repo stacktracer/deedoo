@@ -1,9 +1,15 @@
-export default {
+import type { Conf } from './misc.mjs';
+
+const conf: Conf = {
     serve: {
         host: '127.0.0.1',
         port: 8443,
         certFile: 'FIXME',
         keyFile: 'FIXME',
+        cookieSigningSecret: 'FIXME',
+        auth: {
+            'FIXME': 'FIXME',
+        },
     },
     mqtt: {
         protocol: 'mqtts',
@@ -15,8 +21,10 @@ export default {
     },
     shelly: {
         deviceName: 'shellyplus2pm-FIXME',
-        sensorForDoorFullyOpen: 0 as const,
-        sensorForDoorFullyClosed: 1 as const,
-        relayForClick: 0 as const,
+        sensorForDoorFullyOpen: 0,
+        sensorForDoorFullyClosed: 1,
+        relayForClick: 0,
     },
 };
+
+export default conf;

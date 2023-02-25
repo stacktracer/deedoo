@@ -1,15 +1,13 @@
 import MQTT from 'async-mqtt';
-import express from 'express';
+import cookieParser from 'cookie-parser';
+import express, { RequestHandler } from 'express';
 import { SSE } from 'express-sse';
 import fs from 'fs';
 import https from 'https';
 import type { AddressInfo } from 'net';
 import { isDeepStrictEqual } from 'util';
-import conf from './config.mjs';
-import { DoorState, getDoorState, getRelayNotifyStates, getSensorNotifyStates, getSensorStatusStates, isShellyNotify, isShellyStatus, logListenAddr, requireNonNullish, sendShellyClick, sendShellyStatusRequest, ShellySensorNum } from './misc.mjs';
-
-
-// FIXME: Auth
+import conf from './conf.mjs';
+import { DoorState, getDoorState, getRelayNotifyStates, getSensorNotifyStates, getSensorStatusStates, isShellyNotify, isShellyStatus, logListenAddr, parseAuthHeader, requireNonNullish, sendShellyClick, sendShellyStatusRequest, ShellySensorNum } from './misc.mjs';
 
 
 // SSE
@@ -30,7 +28,7 @@ interface Model {
 const model: Model = {
     isBackendConnectedToMqtt: true,
     doorState: 'UNKNOWN',
-    recentClickTs: new Date( ).getTime( ) * 1e-3,
+    recentClickTs: Date.now( ) * 1e-3,
 };
 function setModelProp<Prop extends keyof Model>( prop: Prop, newValue: Model[Prop] ) {
     if ( !isDeepStrictEqual( newValue, model[ prop ] ) ) {
@@ -141,8 +139,39 @@ const uiHandler = express.static( uiDir );
 
 // Serve
 const app = express( );
-app.use( '/ui', uiHandler );
-app.use( '/api', apiHandler );
+app.use( cookieParser( conf.serve.cookieSigningSecret ) );
+const auth: RequestHandler = ( req, resp, next ) => {
+    // Client provided a signed cookie for a recognized user
+    if ( req.signedCookies[ 'user' ] && conf.serve.auth[ req.signedCookies[ 'user' ] ] ) {
+        next( );
+        return;
+    }
+
+    // Client didn't provide a cookie, but did provide credentials
+    if ( req.headers.authorization ) {
+        const [ username, password ] = parseAuthHeader( req.headers.authorization );
+        if ( username && conf.serve.auth[ username ] && password === conf.serve.auth[ username ] ) {
+            resp.cookie( 'user', username, {
+                sameSite: 'strict',
+                httpOnly: true,
+                secure: true,
+                signed: true,
+                maxAge: 100*365*86400*1000,
+            } );
+            next( );
+            return;
+        }
+    }
+
+    // Client provided neither a cookie nor credentials
+    resp.setHeader( 'WWW-Authenticate', 'Basic' );
+    resp.status( 401 );
+    const e = new Error( 'Not authenticated' );
+    ( e as any ).status = 401;
+    next( e );
+};
+app.use( '/ui', auth, uiHandler );
+app.use( '/api', auth, apiHandler );
 const httpsKey = fs.readFileSync( conf.serve.keyFile );
 const httpsCert = fs.readFileSync( conf.serve.certFile );
 const server = https.createServer( { key: httpsKey, cert: httpsCert }, app );
