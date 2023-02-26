@@ -7,6 +7,7 @@ export interface DeedooConf {
     https: HttpsConf;
     mqtt: MqttConf;
     shelly: ShellyConf;
+    behavior: BehaviorConf;
 }
 
 export interface HttpsConf {
@@ -34,6 +35,11 @@ export interface ShellyConf {
     outputForClick: { relay: ShellyRelayNum, state: boolean };
 }
 
+export interface BehaviorConf {
+    cooldownAfterConnect: number;
+    cooldownAfterClick: number;
+}
+
 export function isNullish( t: unknown ): t is null | undefined {
     return ( t === null || t === undefined );
 }
@@ -43,6 +49,51 @@ export function requireNonNullish<T>( t: T | null | undefined ): T {
         throw new Error( );
     }
     return t;
+}
+
+const timeFormat = new Intl.DateTimeFormat( 'en-US', {
+    timeZoneName: 'short',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    hour12: false,
+    minute: '2-digit',
+    second: '2-digit',
+} );
+export function formatTs( ts: number ): string;
+export function formatTs( ts: undefined ): undefined;
+export function formatTs( ts: number | undefined ): string | undefined;
+export function formatTs( ts: number | undefined ): string | undefined {
+    if ( ts === undefined ) {
+        return undefined;
+    }
+    const tsFloor = Math.floor( ts );
+    const millis = Math.round( 1e3*( ts - tsFloor ) );
+    const FFF = millis.toFixed( 0 ).padStart( 3, '0' );
+    let yyyy = '????';
+    let mm = '??';
+    let dd = '??';
+    let HH = '??';
+    let MM = '??';
+    let SS = '??';
+    let ZZZ = '???';
+    for ( const part of timeFormat.formatToParts( new Date( 1e3*tsFloor ) ) ) {
+        switch ( part.type ) {
+            case 'year': yyyy = part.value; break;
+            case 'month': mm = part.value; break;
+            case 'day': dd = part.value; break;
+            case 'hour': HH = part.value; break;
+            case 'minute': MM = part.value; break;
+            case 'second': SS = part.value; break;
+            case 'timeZoneName': ZZZ = part.value; break;
+        }
+    }
+    return `${yyyy}-${mm}-${dd} ${HH}:${MM}:${SS}.${FFF} ${ZZZ}`;
+}
+
+export function log( s: string ): void {
+    console.log( '[' + formatTs( 1e-3*Date.now( ) ) + '] ' + s );
 }
 
 export function logListenAddr( addrInfo: AddressInfo, isHttps: boolean ) {
@@ -59,7 +110,7 @@ export function logListenAddr( addrInfo: AddressInfo, isHttps: boolean ) {
                     hostname: ( family === 'IPv4' ? ifaceAddr.address : `[${ifaceAddr.address}]` ),
                     port,
                 } );
-                console.log( `Listening at ${ifaceUrl} (${ifaceName})` );
+                log( `Listening at ${ifaceUrl} (${ifaceName})` );
                 ifaceFound = true;
             }
         }
@@ -72,7 +123,7 @@ export function logListenAddr( addrInfo: AddressInfo, isHttps: boolean ) {
             hostname: ( family === 'IPv4' ? address : `[${address}]` ),
             port,
         } );
-        console.log( `Listening at ${addrUrl} (???)` );
+        log( `Listening at ${addrUrl} (???)` );
     }
 }
 
@@ -227,4 +278,10 @@ export function getDoorState( conf: ShellyConf, sensorStates: Map<ShellySensorNu
     else {
         return 'ERROR';
     }
+}
+
+export interface SseEvent {
+    connectedToDevice: boolean;
+    doorState: DoorState;
+    cooldownState: boolean;
 }

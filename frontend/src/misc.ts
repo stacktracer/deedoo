@@ -8,3 +8,27 @@ export function requireNonNullish<T>( t: T | null | undefined ): T {
     }
     return t;
 }
+
+/**
+ * Returns true if this call modified the element's classList.
+ */
+export function setCssClassPresent( element: Element, className: string, wantPresent: boolean ): boolean {
+    const alreadyPresent = element.classList.contains( className );
+    if ( wantPresent && !alreadyPresent ) {
+        element.classList.add( className );
+        return true;
+    }
+    else if ( !wantPresent && alreadyPresent ) {
+        element.classList.remove( className );
+        return true;
+    }
+    return false;
+}
+
+export type DoorState = 'FULLY_OPEN' | 'FULLY_CLOSED' | 'PARTWAY' | 'ERROR' | 'UNKNOWN';
+
+export interface SseEvent {
+    connectedToDevice: boolean;
+    doorState: DoorState;
+    cooldownState: boolean;
+}

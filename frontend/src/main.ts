@@ -1,7 +1,9 @@
-import { requireNonNullish } from './misc';
+import { requireNonNullish, setCssClassPresent, SseEvent } from './misc';
 import { SseConnection } from './sse';
 
-const host = requireNonNullish( document.getElementById( 'host' ) );
+const openButton = requireNonNullish( document.getElementById( 'open' ) );
+const clickButton = requireNonNullish( document.getElementById( 'click' ) );
+const closeButton = requireNonNullish( document.getElementById( 'close' ) );
 
 // FIXME: Balance prompt reconnect against phone battery wasting
 // FIXME: Can we try frequently when location is near home?
@@ -19,10 +21,12 @@ events.addConnectedListener( ( ) => {
 } );
 
 events.addMessageListener( ev => {
-    // FIXME
-    //const msg = JSON.parse( ev.data );
-    const p = document.createElement( 'p' );
-    p.textContent = ev.data;
-    host.appendChild( p );
+    const msg = JSON.parse( ev.data ) as SseEvent;
+    setCssClassPresent( openButton, 'disabled', !msg.connectedToDevice || msg.cooldownState || msg.doorState !== 'FULLY_CLOSED' );
+    setCssClassPresent( closeButton, 'disabled', !msg.connectedToDevice || msg.cooldownState || msg.doorState !== 'FULLY_OPEN' );
+    setCssClassPresent( clickButton, 'disabled', !msg.connectedToDevice );
 } );
 
+openButton.addEventListener( 'click', ( ) => fetch( '../api/open', { method: 'POST', mode: 'same-origin', credentials: 'same-origin' } ) );
+closeButton.addEventListener( 'click', ( ) => fetch( '../api/close', { method: 'POST', mode: 'same-origin', credentials: 'same-origin' } ) );
+clickButton.addEventListener( 'click', ( ) => fetch( '../api/click', { method: 'POST', mode: 'same-origin', credentials: 'same-origin' } ) );
