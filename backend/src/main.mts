@@ -19,6 +19,7 @@ const mqtt = await MQTT.connectAsync( conf.mqtt );
 
 // TODO: Request Shelly status periodically
 // TODO: Check periodically whether we've heard from Shelly recently
+// FIXME: Log timestamps
 
 // FIXME: Subscribe to shelly-is-online topic
 
