@@ -2,6 +2,7 @@ import type { AsyncMqttClient } from 'async-mqtt';
 import type { AddressInfo } from 'net';
 import os from 'os';
 import url from 'url';
+import type { Disposer } from './disposer';
 
 export interface DeedooConf {
     https: HttpsConf;
@@ -30,12 +31,14 @@ export interface MqttConf {
 
 export interface ShellyConf {
     deviceName: string;
-    inputForDoorFullyOpen: { sensor: ShellySensorNum, state: boolean };
+    inputForDoorFullyOpened: { sensor: ShellySensorNum, state: boolean };
     inputForDoorFullyClosed: { sensor: ShellySensorNum, state: boolean };
-    outputForClick: { relay: ShellyRelayNum, state: boolean };
+    outputForClick: { relay: ShellyRelayNum, state: boolean, duration: number };
 }
 
 export interface BehaviorConf {
+    statusCheckInterval: number;
+    statusCheckTimeout: number;
     cooldownAfterConnect: number;
     cooldownAfterClick: number;
 }
@@ -153,14 +156,50 @@ export function sendShellyStatusRequest( mqtt: AsyncMqttClient, shellyDevice: st
     } ), { qos: 2 } );
 }
 
-export function sendShellyClick( mqtt: AsyncMqttClient, conf: ShellyConf ): Promise<void> {
-    return mqtt.publish( `${conf.deviceName}/rpc`, JSON.stringify( {
+export function setAsyncRepeating( delay_MILLIS: number, interval_MILLIS: number, asyncFn: ( ) => Promise<unknown> ): Disposer {
+    // clearTimeout is not sufficient if fn does something async
+    let running = true;
+    let handle = setTimeout2( delay_MILLIS, async function g( ) {
+        if ( running ) {
+            await asyncFn( );
+            if ( running ) {
+                handle = setTimeout2( interval_MILLIS, g );
+            }
+        }
+    } );
+    return ( ) => {
+        running = false;
+        clearTimeout( handle );
+    };
+}
+
+export function setTimeout2( delay_MILLIS: number, fn: ( ) => unknown ): ReturnType<typeof setTimeout> {
+    return setTimeout( fn, delay_MILLIS );
+}
+
+let shellyRecentClick = {};
+export async function sendShellyClick( mqtt: AsyncMqttClient, conf: ShellyConf ): Promise<void> {
+    await mqtt.publish( `${conf.deviceName}/rpc`, JSON.stringify( {
         method: 'Switch.Set',
         params: {
             id: conf.outputForClick.relay,
             on: conf.outputForClick.state,
         },
     } ), { qos: 2 } );
+
+    const thisClick = {};
+    shellyRecentClick = thisClick;
+    setTimeout2( 1e3*conf.outputForClick.duration, async ( ) => {
+        if ( shellyRecentClick === thisClick ) {
+            await mqtt.publish( `${conf.deviceName}/rpc`, JSON.stringify( {
+                method: 'Switch.Set',
+                params: {
+                    id: conf.outputForClick.relay,
+                    on: !conf.outputForClick.state,
+                },
+            } ), { qos: 2 } );
+        }
+    } );
 }
 
 function isObject<T extends object>( x: unknown, _isType: ( x: Record<any,any> ) => boolean ): x is T {
@@ -258,21 +297,21 @@ export function getRelayNotifyStates( notify: ShellyNotify ): Map<ShellyRelayNum
     return map;
 }
 
-export type DoorState = 'FULLY_OPEN' | 'FULLY_CLOSED' | 'PARTWAY' | 'ERROR' | 'UNKNOWN';
+export type DoorState = 'FULLY_OPENED' | 'FULLY_CLOSED' | 'PARTWAY' | 'ERROR' | 'UNKNOWN';
 
 export function getDoorState( conf: ShellyConf, sensorStates: Map<ShellySensorNum,boolean> ): DoorState {
-    const isFullyOpen = ( sensorStates.get( conf.inputForDoorFullyOpen.sensor ) === conf.inputForDoorFullyOpen.state );
+    const isFullyOpened = ( sensorStates.get( conf.inputForDoorFullyOpened.sensor ) === conf.inputForDoorFullyOpened.state );
     const isFullyClosed = ( sensorStates.get( conf.inputForDoorFullyClosed.sensor ) === conf.inputForDoorFullyClosed.state );
-    if ( isFullyOpen === undefined || isFullyClosed === undefined ) {
+    if ( isFullyOpened === undefined || isFullyClosed === undefined ) {
         return 'UNKNOWN';
     }
-    else if ( isFullyOpen && !isFullyClosed ) {
-        return 'FULLY_OPEN';
+    else if ( isFullyOpened && !isFullyClosed ) {
+        return 'FULLY_OPENED';
     }
-    else if ( !isFullyOpen && isFullyClosed ) {
+    else if ( !isFullyOpened && isFullyClosed ) {
         return 'FULLY_CLOSED';
     }
-    else if ( !isFullyOpen && !isFullyClosed ) {
+    else if ( !isFullyOpened && !isFullyClosed ) {
         return 'PARTWAY';
     }
     else {

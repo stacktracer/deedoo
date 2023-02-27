@@ -1,32 +1,43 @@
 import { requireNonNullish, setCssClassPresent, SseEvent } from './misc';
-import { SseConnection } from './sse';
 
-const openButton = requireNonNullish( document.getElementById( 'open' ) );
-const clickButton = requireNonNullish( document.getElementById( 'click' ) );
-const closeButton = requireNonNullish( document.getElementById( 'close' ) );
+const openButton = requireNonNullish( document.getElementById( 'open-action' ) );
+const rawButton = requireNonNullish( document.getElementById( 'raw-action' ) );
+const closeButton = requireNonNullish( document.getElementById( 'close-action' ) );
+const openedMessage = requireNonNullish( document.getElementById( 'opened-state' ) );
+const closedMessage = requireNonNullish( document.getElementById( 'closed-state' ) );
 
-// FIXME: Balance prompt reconnect against phone battery wasting
-// FIXME: Can we try frequently when location is near home?
-// FIXME: Can we try frequently when on home wifi?
-// FIXME: Can we try frequently when server IP addr is the local addr?
-// FIXME: Can we try frequently when server IP addr is a local-cell-tower addr?
-const events = new SseConnection( '../api/events', 1000 );
+setCssClassPresent( openButton, 'disabled', true );
+setCssClassPresent( closeButton, 'disabled', true );
+setCssClassPresent( rawButton, 'disabled', true );
+setCssClassPresent( openedMessage, 'hidden', true );
+setCssClassPresent( closedMessage, 'hidden', true );
+
+// TODO: Can we promptly auto-reconnect without draining a phone battery?
+const eventSource = new EventSource( '../api/events' );
+eventSource.addEventListener( 'message', ev => {
+    const msg = JSON.parse( ev.data ) as SseEvent;
+    setCssClassPresent( openButton, 'disabled', !msg.connectedToDevice || msg.cooldownState || msg.doorState !== 'FULLY_CLOSED' );
+    setCssClassPresent( closeButton, 'disabled', !msg.connectedToDevice || msg.cooldownState || msg.doorState !== 'FULLY_OPENED' );
+    setCssClassPresent( rawButton, 'disabled', !msg.connectedToDevice );
+    setCssClassPresent( openedMessage, 'hidden', !( msg.connectedToDevice && msg.doorState === 'FULLY_OPENED' ) );
+    setCssClassPresent( closedMessage, 'hidden', !( msg.connectedToDevice && msg.doorState === 'FULLY_CLOSED' ) );
+} );
+eventSource.addEventListener( 'error', ( ) => {
+    setCssClassPresent( openButton, 'disabled', true );
+    setCssClassPresent( closeButton, 'disabled', true );
+    setCssClassPresent( rawButton, 'disabled', true );
+    setCssClassPresent( openedMessage, 'hidden', true );
+    setCssClassPresent( closedMessage, 'hidden', true );
+} );
 
 // TODO: Report available updates
 // TODO: Report restart required
 
-events.addConnectedListener( ( ) => {
-    // FIXME
-    //events.connected
-} );
-
-events.addMessageListener( ev => {
-    const msg = JSON.parse( ev.data ) as SseEvent;
-    setCssClassPresent( openButton, 'disabled', !msg.connectedToDevice || msg.cooldownState || msg.doorState !== 'FULLY_CLOSED' );
-    setCssClassPresent( closeButton, 'disabled', !msg.connectedToDevice || msg.cooldownState || msg.doorState !== 'FULLY_OPEN' );
-    setCssClassPresent( clickButton, 'disabled', !msg.connectedToDevice );
-} );
-
-openButton.addEventListener( 'click', ( ) => fetch( '../api/open', { method: 'POST', mode: 'same-origin', credentials: 'same-origin' } ) );
-closeButton.addEventListener( 'click', ( ) => fetch( '../api/close', { method: 'POST', mode: 'same-origin', credentials: 'same-origin' } ) );
-clickButton.addEventListener( 'click', ( ) => fetch( '../api/click', { method: 'POST', mode: 'same-origin', credentials: 'same-origin' } ) );
+function onPostButton( url: string ): EventListener {
+    return async ( ) => {
+        fetch( url, { method: 'POST', mode: 'same-origin', credentials: 'same-origin' } );
+    };
+}
+openButton.addEventListener( 'click', onPostButton( '../api/open' ) );
+closeButton.addEventListener( 'click', onPostButton( '../api/close' ) );
+rawButton.addEventListener( 'click', onPostButton( '../api/raw-click' ) );

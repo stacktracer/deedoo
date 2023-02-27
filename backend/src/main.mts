@@ -6,7 +6,7 @@ import fs from 'fs';
 import https from 'https';
 import type { AddressInfo } from 'net';
 import { isDeepStrictEqual } from 'util';
-import { DeedooConf, DoorState, formatTs, getDoorState, getRelayNotifyStates, getSensorNotifyStates, getSensorStatusStates, isNullish, isShellyNotify, isShellyStatus, log, logListenAddr, parseAuthHeader, requireNonNullish, sendShellyClick, sendShellyStatusRequest, ShellySensorNum, SseEvent } from './misc.mjs';
+import { DeedooConf, DoorState, formatTs, getDoorState, getRelayNotifyStates, getSensorNotifyStates, getSensorStatusStates, isNullish, isShellyNotify, isShellyStatus, log, logListenAddr, parseAuthHeader, requireNonNullish, sendShellyClick, sendShellyStatusRequest, setAsyncRepeating, setTimeout2, ShellySensorNum, SseEvent } from './misc.mjs';
 
 
 // Conf
@@ -20,30 +20,33 @@ const sse = new SSE( );
 // MQTT
 const mqtt = await MQTT.connectAsync( conf.mqtt );
 
-// TODO: Request Shelly status periodically
-// TODO: Check periodically whether we've heard from Shelly recently
-
-// FIXME: Subscribe to shelly-is-online topic
-
 // TODO: Switch to Gleam Refs
 interface Model {
-    isBackendConnectedToMqtt: boolean;
+    mqttAndBackendConnected: boolean;
+    mqttAndDeviceConnected: boolean;
+    backendAndDeviceConnected: boolean;
     doorState: DoorState;
     activeCooldown: { endTs: number } | undefined;
 }
 const model: Model = {
-    isBackendConnectedToMqtt: true,
+    mqttAndBackendConnected: true,
+    mqttAndDeviceConnected: false,
+    backendAndDeviceConnected: false,
     doorState: 'UNKNOWN',
     activeCooldown: undefined,
 };
 function setModelProp<Prop extends keyof Model>( prop: Prop, newValue: Model[Prop] ): void {
     if ( !isDeepStrictEqual( newValue, model[ prop ] ) ) {
         model[ prop ] = newValue;
-        if ( prop === 'isBackendConnectedToMqtt' && model.isBackendConnectedToMqtt ) {
-            enterCooldown( conf.behavior.cooldownAfterConnect );
+        setModelProp( 'backendAndDeviceConnected', model.mqttAndBackendConnected && model.mqttAndDeviceConnected );
+        if ( prop === 'backendAndDeviceConnected' ) {
+            log( model.backendAndDeviceConnected ? 'CONNECTED to device' : 'DISCONNECTED from device' );
+            if ( model.backendAndDeviceConnected ) {
+                enterCooldown( conf.behavior.cooldownAfterConnect );
+            }
         }
         const event: SseEvent = {
-            connectedToDevice: model.isBackendConnectedToMqtt, // FIXME
+            connectedToDevice: model.backendAndDeviceConnected,
             doorState: model.doorState,
             cooldownState: !isNullish( model.activeCooldown ),
         }
@@ -66,7 +69,7 @@ function enterCooldown( duration: number ): void {
 }
 
 const checkMqttConnected = ( ) => {
-    setModelProp( 'isBackendConnectedToMqtt', mqtt.connected );
+    setModelProp( 'mqttAndBackendConnected', mqtt.connected );
 };
 mqtt.on( 'connect', checkMqttConnected );
 mqtt.on( 'message', checkMqttConnected );
@@ -85,23 +88,35 @@ const topics = [ `${conf.shelly.deviceName}/events/rpc` ];
 log( `Subscribing to ${ topics.join( ', ' ) }` );
 await mqtt.subscribe( topics );
 
+let receivedStatus = false;
+
+// Check device status periodically
+setAsyncRepeating( 0, 1e3*conf.behavior.statusCheckInterval, async ( ) => {
+    receivedStatus = false;
+    await sendShellyStatusRequest( mqtt, conf.shelly.deviceName );
+    setTimeout2( 1e3*conf.behavior.statusCheckTimeout, ( ) => {
+        setModelProp( 'mqttAndDeviceConnected', receivedStatus );
+    } );
+} );
+
+// Handle messages from device
 const sensorStates = new Map<ShellySensorNum,boolean>( );
 mqtt.on( 'message', async ( _, payload ) => {
     const json = JSON.parse( payload.toString( 'utf8' ) );
     if ( isShellyStatus( json ) ) {
+        receivedStatus = true;
+        setModelProp( 'mqttAndDeviceConnected', true );
         for ( const [ sensor, state ] of getSensorStatusStates( json ) ) {
-            if ( sensor === conf.shelly.inputForDoorFullyOpen.sensor || sensor === conf.shelly.inputForDoorFullyClosed.sensor ) {
-                const oldDoorState = getDoorState( conf.shelly, sensorStates );
+            if ( sensor === conf.shelly.inputForDoorFullyOpened.sensor || sensor === conf.shelly.inputForDoorFullyClosed.sensor ) {
                 sensorStates.set( sensor, state );
                 const newDoorState = getDoorState( conf.shelly, sensorStates );
-                log( `Sensor status: sensor = ${sensor}, sensor-state = ${state}, old-door-state = ${oldDoorState}, new-door-state = ${newDoorState}` );
                 setModelProp( 'doorState', newDoorState );
             }
         }
     }
     else if ( isShellyNotify( json ) ) {
         for ( const [ sensor, state ] of getSensorNotifyStates( json ) ) {
-            if ( sensor === conf.shelly.inputForDoorFullyOpen.sensor || sensor === conf.shelly.inputForDoorFullyClosed.sensor ) {
+            if ( sensor === conf.shelly.inputForDoorFullyOpened.sensor || sensor === conf.shelly.inputForDoorFullyClosed.sensor ) {
                 const oldDoorState = getDoorState( conf.shelly, sensorStates );
                 sensorStates.set( sensor, state );
                 const newDoorState = getDoorState( conf.shelly, sensorStates );
@@ -117,9 +132,6 @@ mqtt.on( 'message', async ( _, payload ) => {
         }
     }
 } );
-
-log( 'Requesting initial status' );
-await sendShellyStatusRequest( mqtt, conf.shelly.deviceName );
 
 
 // API
@@ -142,7 +154,7 @@ apiHandler.post( '/open', async ( _, resp ) => {
 apiHandler.post( '/close', async ( _, resp ) => {
     const priorCooldown = model.activeCooldown;
     const priorDoorState = getDoorState( conf.shelly, sensorStates );
-    const willExecute = ( !priorCooldown && priorDoorState === 'FULLY_OPEN' );
+    const willExecute = ( !priorCooldown && priorDoorState === 'FULLY_OPENED' );
     if ( willExecute ) {
         enterCooldown( conf.behavior.cooldownAfterClick );
         await sendShellyClick( mqtt, conf.shelly );
@@ -151,7 +163,7 @@ apiHandler.post( '/close', async ( _, resp ) => {
     resp.status( 200 ).json( { actionTaken: willExecute, priorCooldown, priorDoorState } );
 } );
 
-apiHandler.post( '/click', async ( _, resp ) => {
+apiHandler.post( '/raw-click', async ( _, resp ) => {
     const priorCooldown = model.activeCooldown;
     const priorDoorState = getDoorState( conf.shelly, sensorStates );
     const willExecute = true;
@@ -159,7 +171,7 @@ apiHandler.post( '/click', async ( _, resp ) => {
         enterCooldown( conf.behavior.cooldownAfterClick );
         await sendShellyClick( mqtt, conf.shelly );
     }
-    log( `${willExecute ? 'Executing' : 'Ignoring'} cmd CLICK: prior-cooldown = ${ formatTs( priorCooldown?.endTs ) }, prior-door-state = ${priorDoorState}` );
+    log( `${willExecute ? 'Executing' : 'Ignoring'} cmd RAW_CLICK: prior-cooldown = ${ formatTs( priorCooldown?.endTs ) }, prior-door-state = ${priorDoorState}` );
     resp.status( 200 ).json( { actionTaken: willExecute, priorCooldown, priorDoorState } );
 } );
 

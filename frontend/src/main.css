@@ -1,6 +1,7 @@
 body {
     display: grid;
     grid-template-columns: auto min-content auto;
+    grid-template-rows: min-content auto minmax(0,1fr) auto minmax(0,1fr) auto min-content;
     align-content: space-between;
 
     box-sizing: border-box;
@@ -9,16 +10,31 @@ body {
     padding: 20px;
 }
 
-a {
+body > * {
+    grid-column: 1 / span 3;
+}
+body > a {
     border-radius: 12px;
     font: 48px sans-serif;
     text-decoration: none;
     color: white;
 }
-a#open,
-a#close {
-    grid-column: 1 / span 3;
+body > span#opened-state,
+body > span#closed-state {
+    font: 36px sans-serif;
 
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    text-align: center;
+}
+body > span#opened-state.hidden,
+body > span#closed-state.hidden {
+    opacity: 0;
+}
+body > a#open-action,
+body > a#close-action {
+    margin-block: 10px;
     padding-block: 30px;
     padding-inline: 15px;
     background-color: rgb( 0,130,90 );
@@ -28,7 +44,11 @@ a#close {
     justify-content: space-between;
     align-items: center;
 }
-a#click {
+body > a#open-action:active,
+body > a#close-action:active {
+    background-color: rgb( 0,65,45 );
+}
+body > a#raw-action {
     grid-column: 2 / span 1;
 
     padding-block: 15px;
@@ -40,11 +60,15 @@ a#click {
     flex-direction: column;
     text-align: center;
 }
-a.disabled,
-a#open.disabled,
-a#close.disabled,
-a#click.disabled {
+body > a#raw-action:active {
+    background-color: rgb( 117,32,35 );
+}
+body > a.disabled,
+body > a#open-action.disabled,
+body > a#close-action.disabled,
+body > a#raw-action.disabled {
     pointer-events: none;
+    touch-action: none;
     cursor: not-allowed;
     background-color: rgb( 100,100,100 );
 }

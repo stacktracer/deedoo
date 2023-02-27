@@ -25,7 +25,7 @@ export function setCssClassPresent( element: Element, className: string, wantPre
     return false;
 }
 
-export type DoorState = 'FULLY_OPEN' | 'FULLY_CLOSED' | 'PARTWAY' | 'ERROR' | 'UNKNOWN';
+export type DoorState = 'FULLY_OPENED' | 'FULLY_CLOSED' | 'PARTWAY' | 'ERROR' | 'UNKNOWN';
 
 export interface SseEvent {
     connectedToDevice: boolean;
