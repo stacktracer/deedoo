@@ -1,5 +1,6 @@
 import express, { RequestHandler } from 'express';
 import { SSE } from 'express-sse';
+import fs from 'fs';
 import type { MqttClient } from 'mqtt';
 import { isDeepStrictEqual } from 'util';
 import { doLog, DoorState, formatTs, getDoorState, getRelayNotifyStates, getSensorNotifyStates, getSensorStatusStates, isShellyNotify, isShellyStatus, mqttOnMessage, sendShellyClick, sendShellyStatusRequest, setAsyncRepeating, setTimeout2, ShellySensorNum, SiteConf, SseEvent } from './misc.mjs';
@@ -115,9 +116,8 @@ export async function createSite( siteConf: SiteConf, mqtt: MqttClient, logPrefi
 
     // Routes
     const handler = express.Router( );
-    handler.get( '/api/conf', ( _, resp ) => {
-        resp.status( 200 ).json( siteConf.frontend );
-    } );
+
+    // REST
     handler.post( '/api/open', async ( _, resp ) => {
         const priorCooldown = model.activeCooldown;
         const priorDoorState = getDoorState( conf, sensorStates );
@@ -152,6 +152,27 @@ export async function createSite( siteConf: SiteConf, mqtt: MqttClient, logPrefi
         resp.status( 200 ).json( { actionTaken: willExecute, priorCooldown, priorDoorState } );
     } );
     handler.get( '/api/events', sse.init );
-    handler.use( '/ui', express.static( new URL( '../../frontend/build/dist/', import.meta.url ).pathname ) );
+
+    // Frontend
+    const frontendDir = new URL( '../../frontend/build/dist/', import.meta.url ).pathname
+    const indexHtmlCharset = 'utf8';
+    const indexHtml0 = ( await fs.promises.readFile( frontendDir + '/index.html' ) ).toString( indexHtmlCharset );
+    const indexHtml1 = indexHtml0.replaceAll( /\${title}/g, siteConf.frontend.title );
+    const indexHtml2 = Buffer.from( indexHtml1, indexHtmlCharset );
+    const indexHtmlHandler: RequestHandler = ( _, resp ) => {
+        resp.set( 'Content-Type', 'text/html' );
+        resp.send( indexHtml2 );
+    };
+    handler.get( '/ui/index.html', indexHtmlHandler );
+    handler.get( '/ui', ( req, resp, next ) => {
+        if ( !req.originalUrl.endsWith( '/' ) ) {
+            resp.redirect( 301, 'ui/' );
+        }
+        else {
+            indexHtmlHandler( req, resp, next );
+        }
+    } );
+    handler.use( '/ui', express.static( frontendDir ) );
+
     return handler;
 }

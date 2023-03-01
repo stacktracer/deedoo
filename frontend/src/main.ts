@@ -1,25 +1,17 @@
 import { Disposer, DisposerGroup } from './disposer';
-import { attachEventListener, attachEventSourceListener, requireNonNullish, setCssClassPresent, SiteFrontendConf, SseEvent } from './misc';
+import { attachEventListener, attachEventSourceListener, requireNonNullish, setCssClassPresent, SseEvent } from './misc';
 
-const openButton = requireNonNullish( document.getElementById( 'open-action' ) );
-const rawButton = requireNonNullish( document.getElementById( 'raw-action' ) );
-const closeButton = requireNonNullish( document.getElementById( 'close-action' ) );
 const openedMessage = requireNonNullish( document.getElementById( 'opened-state' ) );
+const closeButton = requireNonNullish( document.getElementById( 'close-action' ) );
+const rawButton = requireNonNullish( document.getElementById( 'raw-action' ) );
+const openButton = requireNonNullish( document.getElementById( 'open-action' ) );
 const closedMessage = requireNonNullish( document.getElementById( 'closed-state' ) );
 
-( async function( ) {
-    const resp = await fetch( '../api/conf', { method: 'GET', mode: 'same-origin', credentials: 'same-origin' } );
-    if ( resp.ok ) {
-        const conf = await resp.json( ) as SiteFrontendConf;
-        document.title = conf.title;
-    }
-} )( );
-
 function setSseDisconnected( ): void {
-    setCssClassPresent( openButton, 'disabled', true );
+    setCssClassPresent( openedMessage, 'hidden', true );
     setCssClassPresent( closeButton, 'disabled', true );
     setCssClassPresent( rawButton, 'disabled', true );
-    setCssClassPresent( openedMessage, 'hidden', true );
+    setCssClassPresent( openButton, 'disabled', true );
     setCssClassPresent( closedMessage, 'hidden', true );
 }
 setSseDisconnected( );

@@ -1,7 +1,7 @@
 body {
     display: grid;
     grid-template-columns: auto min-content auto;
-    grid-template-rows: min-content auto minmax(0,1fr) auto minmax(0,1fr) auto min-content;
+    grid-template-rows: min-content auto minmax(0,1fr) auto auto minmax(0,1fr) auto min-content minmax(0,0.3fr);
     align-content: space-between;
 
     box-sizing: border-box;
@@ -13,12 +13,7 @@ body {
 body > * {
     grid-column: 1 / span 3;
 }
-body > a {
-    border-radius: 12px;
-    font: 48px sans-serif;
-    text-decoration: none;
-    color: white;
-}
+
 body > span#opened-state,
 body > span#closed-state {
     font: 36px sans-serif;
@@ -32,12 +27,18 @@ body > span#opened-state.hidden,
 body > span#closed-state.hidden {
     opacity: 0;
 }
+
 body > a#open-action,
 body > a#close-action {
     margin-block: 10px;
     padding-block: 30px;
-    padding-inline: 15px;
+    padding-inline: 25px;
     background-color: rgb( 0,130,90 );
+
+    border-radius: 12px;
+    font: 48px sans-serif;
+    text-decoration: none;
+    color: white;
 
     display: grid;
     grid-template-columns: auto auto auto;
@@ -50,28 +51,34 @@ body > a#close-action.pressed,
 body > a#close-action.posting {
         background-color: rgb( 0,65,45 );
 }
-body > a#raw-action {
-    grid-column: 2 / span 1;
+body > a#open-action.disabled,
+body > a#close-action.disabled {
+    background-color: rgb( 190,190,190 );
+}
 
-    padding-block: 15px;
-    padding-inline: 15px;
-    background-color: rgb( 210,90,95 );
+body > span#site-title {
+    font: 36px sans-serif;
+    color: rgb( 170,170,170 );
 
     display: flex;
     justify-content: center;
     flex-direction: column;
     text-align: center;
 }
-body > a#raw-action.pressed,
-body > a#raw-action.posting {
-        background-color: rgb( 117,32,35 );
+
+body > a#raw-action {
+    grid-column: 2 / span 1;
+
+    font: 16px sans-serif;
+    color: rgb( 235,108,112 );
+
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    text-align: center;
 }
-body > a.disabled,
-body > a#open-action.disabled,
-body > a#close-action.disabled,
-body > a#raw-action.disabled {
+body > a.disabled {
     pointer-events: none;
     touch-action: none;
     cursor: not-allowed;
-    background-color: rgb( 190,190,190 );
 }

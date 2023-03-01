@@ -3,17 +3,19 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Deedoo</title>
+    <title>${title}</title>
     <link rel="stylesheet" href="main.css">
 </head>
 <body>
     <span id="opened-state">Door is Open</span>
     <a id="close-action" href="#"><span>↓</span><span>Close</span><span>↓</span></a>
     <span class="spacer"></span>
-    <a id="raw-action" href="#">Raw</a>
+    <span id="site-title">${title}</span>
+    <a id="raw-action" href="#">Raw&nbsp;Click</a>
     <span class="spacer"></span>
     <a id="open-action" href="#"><span>↑</span><span>Open</span><span>↑</span></a>
     <span id="closed-state">Door is Closed</span>
+    <span class="spacer"></span>
 
     <script src="main.js"></script>
 </body>

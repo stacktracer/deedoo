@@ -155,12 +155,9 @@ export function createAuthHandler( conf: HttpsConf ): RequestHandler {
         }
 
         // Client provided neither a cookie nor credentials
-        // FIXME: Which is the right way to set status?
         resp.setHeader( 'WWW-Authenticate', 'Basic' );
         resp.status( 401 );
-        const e = new Error( 'Not authenticated' );
-        ( e as any ).status = 401;
-        next( e );
+        next( new Error( 'Not authenticated' ) );
     };
 }
 
