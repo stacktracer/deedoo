@@ -7,6 +7,14 @@ const closeButton = requireNonNullish( document.getElementById( 'close-action' )
 const openedMessage = requireNonNullish( document.getElementById( 'opened-state' ) );
 const closedMessage = requireNonNullish( document.getElementById( 'closed-state' ) );
 
+( async function( ) {
+    const resp = await fetch( '../api/conf', { method: 'GET', mode: 'same-origin', credentials: 'same-origin' } );
+    if ( resp.ok ) {
+        const conf = await resp.json( ) as SiteFrontendConf;
+        document.title = conf.title;
+    }
+} )( );
+
 function setSseDisconnected( ): void {
     setCssClassPresent( openButton, 'disabled', true );
     setCssClassPresent( closeButton, 'disabled', true );
