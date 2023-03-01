@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@tsconfig/node18-strictest-esm": "^1.0.1",
-    "async-mqtt": "^2.6.3",
+    "mqtt": "^4.3.7",
     "cookie-parser": "^1.4.6",
     "express": "^4.18.2",
     "express-sse": "github:omgimalexis/express-sse#fdbecbe60ad5ba654d34b82b345c3e68f0de44c9",

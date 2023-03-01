@@ -27,6 +27,10 @@ export function setCssClassPresent( element: Element, className: string, wantPre
     return false;
 }
 
+export interface SiteFrontendConf {
+    title: string;
+}
+
 export type DoorState = 'FULLY_OPENED' | 'FULLY_CLOSED' | 'PARTWAY' | 'ERROR' | 'UNKNOWN';
 
 export interface SseEvent {

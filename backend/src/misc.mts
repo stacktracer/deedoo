@@ -1,4 +1,5 @@
-import type { AsyncMqttClient } from 'async-mqtt';
+import type { RequestHandler } from 'express';
+import type { IClientOptions, MqttClient, OnMessageCallback } from 'mqtt';
 import type { AddressInfo } from 'net';
 import os from 'os';
 import url from 'url';
@@ -7,8 +8,7 @@ import type { Disposer } from './disposer';
 export interface DeedooConf {
     https: HttpsConf;
     mqtt: MqttConf;
-    shelly: ShellyConf;
-    behavior: BehaviorConf;
+    sites: Record<string,SiteConf>;
 }
 
 export interface HttpsConf {
@@ -20,23 +20,23 @@ export interface HttpsConf {
     auth: Record<string,string>;
 }
 
-export interface MqttConf {
-    protocol: string;
-    host: string;
-    port: number;
-    clientId: string;
-    username: string;
-    password: string;
+export type MqttConf = IClientOptions;
+
+export interface SiteConf {
+    frontend: SiteFrontendConf;
+    backend: SiteBackendConf;
 }
 
-export interface ShellyConf {
+export interface SiteFrontendConf {
+    title: string;
+}
+
+export interface SiteBackendConf {
     deviceName: string;
     inputForDoorFullyOpened: { sensor: ShellySensorNum, state: boolean };
     inputForDoorFullyClosed: { sensor: ShellySensorNum, state: boolean };
     outputForClick: { relay: ShellyRelayNum, state: boolean, duration: number };
-}
 
-export interface BehaviorConf {
     statusCheckInterval: number;
     statusCheckTimeout: number;
     cooldownAfterConnect: number;
@@ -95,7 +95,7 @@ export function formatTs( ts: number | undefined ): string | undefined {
     return `${yyyy}-${mm}-${dd} ${HH}:${MM}:${SS}.${FFF} ${ZZZ}`;
 }
 
-export function log( s: string ): void {
+export function doLog( s: string ): void {
     console.log( '[' + formatTs( 1e-3*Date.now( ) ) + '] ' + s );
 }
 
@@ -113,7 +113,7 @@ export function logListenAddr( addrInfo: AddressInfo, isHttps: boolean ) {
                     hostname: ( family === 'IPv4' ? ifaceAddr.address : `[${ifaceAddr.address}]` ),
                     port,
                 } );
-                log( `Listening at ${ifaceUrl} (${ifaceName})` );
+                doLog( `Listening at ${ifaceUrl} (${ifaceName})` );
                 ifaceFound = true;
             }
         }
@@ -126,8 +126,42 @@ export function logListenAddr( addrInfo: AddressInfo, isHttps: boolean ) {
             hostname: ( family === 'IPv4' ? address : `[${address}]` ),
             port,
         } );
-        log( `Listening at ${addrUrl} (???)` );
+        doLog( `Listening at ${addrUrl} (???)` );
     }
+}
+
+export function createAuthHandler( conf: HttpsConf ): RequestHandler {
+    return ( req, resp, next ) => {
+        // Client provided a signed cookie for a recognized user
+        if ( req.signedCookies[ 'user' ] && conf.auth[ req.signedCookies[ 'user' ] ] ) {
+            next( );
+            return;
+        }
+
+        // Client didn't provide a cookie, but did provide credentials
+        if ( req.headers.authorization ) {
+            const [ username, password ] = parseAuthHeader( req.headers.authorization );
+            if ( username && conf.auth[ username ] && password === conf.auth[ username ] ) {
+                resp.cookie( 'user', username, {
+                    sameSite: 'strict',
+                    httpOnly: true,
+                    secure: true,
+                    signed: true,
+                    maxAge: 365*86400*1000,
+                } );
+                next( );
+                return;
+            }
+        }
+
+        // Client provided neither a cookie nor credentials
+        // FIXME: Which is the right way to set status?
+        resp.setHeader( 'WWW-Authenticate', 'Basic' );
+        resp.status( 401 );
+        const e = new Error( 'Not authenticated' );
+        ( e as any ).status = 401;
+        next( e );
+    };
 }
 
 function requireTwoTuple( array: Array<string> ): [ string, string ] {
@@ -145,15 +179,44 @@ export function parseAuthHeader( authHeader: string ): [ username: string, passw
     }
 }
 
+export function mqttOnMessage( mqtt: MqttClient, topics: string | Array<string>, callback: OnMessageCallback ): void {
+    const topicSet = new Set( topics );
+    mqtt.subscribe( topics, e => {
+        if ( e ) {
+            throw e;
+        }
+        else {
+            mqtt.on( 'message', async ( topic, payload, packet ) => {
+                if ( topicSet.has( topic ) ) {
+                    callback( topic, payload, packet );
+                }
+            } );
+        }
+    } );
+}
+
+export function mqttPublish( mqtt: MqttClient, topic: string, message: string | Buffer ): Promise<void> {
+    return new Promise( ( resolve, reject ) => {
+        mqtt.publish( topic, message, { qos: 2 }, e => {
+            if ( e ) {
+                reject( e );
+            }
+            else {
+                resolve( );
+            }
+        } );
+    } );
+}
+
 export type ShellySensorNum = 0 | 1;
 export type ShellyRelayNum = 0 | 1;
 
-export function sendShellyStatusRequest( mqtt: AsyncMqttClient, shellyDevice: string ): Promise<void> {
-    return mqtt.publish( `${shellyDevice}/rpc`, JSON.stringify( {
+export function sendShellyStatusRequest( mqtt: MqttClient, shellyDevice: string ): Promise<void> {
+    return mqttPublish( mqtt, `${shellyDevice}/rpc`, JSON.stringify( {
         id: 0,
         method: 'Shelly.GetStatus',
         src: `${shellyDevice}/events`,
-    } ), { qos: 2 } );
+    } ) );
 }
 
 export function setAsyncRepeating( delay_MILLIS: number, interval_MILLIS: number, asyncFn: ( ) => Promise<unknown> ): Disposer {
@@ -177,27 +240,38 @@ export function setTimeout2( delay_MILLIS: number, fn: ( ) => unknown ): ReturnT
     return setTimeout( fn, delay_MILLIS );
 }
 
-let shellyRecentClick = {};
-export async function sendShellyClick( mqtt: AsyncMqttClient, conf: ShellyConf ): Promise<void> {
-    await mqtt.publish( `${conf.deviceName}/rpc`, JSON.stringify( {
+const shellyRecentClicksByDeviceByMqtt = new WeakMap<MqttClient,Map<string,object>>( );
+function setShellyRecentClick( mqtt: MqttClient, deviceName: string, value: object ): void {
+    let clicksByDevice = shellyRecentClicksByDeviceByMqtt.get( mqtt );
+    if ( !clicksByDevice ) {
+        clicksByDevice = new Map( );
+        shellyRecentClicksByDeviceByMqtt.set( mqtt, clicksByDevice );
+    }
+    clicksByDevice.set( deviceName, value );
+}
+function getShellyRecentClick( mqtt: MqttClient, deviceName: string ): object | undefined {
+    return shellyRecentClicksByDeviceByMqtt.get( mqtt )?.get( deviceName );
+}
+export async function sendShellyClick( mqtt: MqttClient, conf: SiteBackendConf ): Promise<void> {
+    const { deviceName, outputForClick } = conf;
+    await mqttPublish( mqtt, `${deviceName}/rpc`, JSON.stringify( {
         method: 'Switch.Set',
         params: {
-            id: conf.outputForClick.relay,
-            on: conf.outputForClick.state,
+            id: outputForClick.relay,
+            on: outputForClick.state,
         },
-    } ), { qos: 2 } );
-
+    } ) );
     const thisClick = {};
-    shellyRecentClick = thisClick;
-    setTimeout2( 1e3*conf.outputForClick.duration, async ( ) => {
-        if ( shellyRecentClick === thisClick ) {
-            await mqtt.publish( `${conf.deviceName}/rpc`, JSON.stringify( {
+    setShellyRecentClick( mqtt, deviceName, thisClick );
+    setTimeout2( 1e3*outputForClick.duration, async ( ) => {
+        if ( getShellyRecentClick( mqtt, deviceName ) === thisClick ) {
+            await mqttPublish( mqtt, `${deviceName}/rpc`, JSON.stringify( {
                 method: 'Switch.Set',
                 params: {
-                    id: conf.outputForClick.relay,
-                    on: !conf.outputForClick.state,
+                    id: outputForClick.relay,
+                    on: !outputForClick.state,
                 },
-            } ), { qos: 2 } );
+            } ) );
         }
     } );
 }
@@ -299,7 +373,7 @@ export function getRelayNotifyStates( notify: ShellyNotify ): Map<ShellyRelayNum
 
 export type DoorState = 'FULLY_OPENED' | 'FULLY_CLOSED' | 'PARTWAY' | 'ERROR' | 'UNKNOWN';
 
-export function getDoorState( conf: ShellyConf, sensorStates: Map<ShellySensorNum,boolean> ): DoorState {
+export function getDoorState( conf: SiteBackendConf, sensorStates: Map<ShellySensorNum,boolean> ): DoorState {
     const isFullyOpened = ( sensorStates.get( conf.inputForDoorFullyOpened.sensor ) === conf.inputForDoorFullyOpened.state );
     const isFullyClosed = ( sensorStates.get( conf.inputForDoorFullyClosed.sensor ) === conf.inputForDoorFullyClosed.state );
     if ( isFullyOpened === undefined || isFullyClosed === undefined ) {

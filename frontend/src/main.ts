@@ -1,5 +1,5 @@
 import { Disposer, DisposerGroup } from './disposer';
-import { attachEventListener, attachEventSourceListener, requireNonNullish, setCssClassPresent, SseEvent } from './misc';
+import { attachEventListener, attachEventSourceListener, requireNonNullish, setCssClassPresent, SiteFrontendConf, SseEvent } from './misc';
 
 const openButton = requireNonNullish( document.getElementById( 'open-action' ) );
 const rawButton = requireNonNullish( document.getElementById( 'raw-action' ) );
