@@ -53,6 +53,9 @@ body > a#close-action.posting {
 }
 body > a#open-action.disabled,
 body > a#close-action.disabled {
+    pointer-events: none;
+    touch-action: none;
+    cursor: not-allowed;
     background-color: rgb( 190,190,190 );
 }
 
@@ -77,8 +80,14 @@ body > a#raw-action {
     flex-direction: column;
     text-align: center;
 }
-body > a.disabled {
+body > a#raw-action.pressed,
+body > a#raw-action.posting {
+    color: rgb( 117,32,35 );
+}
+body > a#raw-action.disabled {
     pointer-events: none;
     touch-action: none;
     cursor: not-allowed;
+    color: rgb( 170,170,170 );
+    text-decoration: none;
 }
