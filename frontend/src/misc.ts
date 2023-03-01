@@ -1,3 +1,5 @@
+import { Disposer } from './disposer';
+
 export function isNullish( t: unknown ): t is null | undefined {
     return ( t === null || t === undefined );
 }
@@ -31,4 +33,21 @@ export interface SseEvent {
     connectedToDevice: boolean;
     doorState: DoorState;
     cooldownState: boolean;
+}
+
+export function attachEventSourceListener<K extends keyof EventSourceEventMap>( eventSource: EventSource, type: K, listener: ( this: EventSource, ev: EventSourceEventMap[K] ) => any, options?: boolean | AddEventListenerOptions ): Disposer {
+    eventSource.addEventListener( type, listener, options );
+    return ( ) => {
+        eventSource.removeEventListener( type, listener, options );
+    };
+}
+
+export function attachEventListener<K extends keyof WindowEventMap>( window: Window, type: K, useCapture: boolean, listener: ( this: Window, ev: WindowEventMap[K] ) => unknown ): Disposer;
+export function attachEventListener<K extends keyof HTMLElementEventMap>( element: HTMLElement, type: K, useCapture: boolean, listener: ( this: HTMLElement, ev: HTMLElementEventMap[K] ) => unknown ): Disposer;
+export function attachEventListener( source: GlobalEventHandlers, type: string, useCapture: boolean, listener: EventListenerOrEventListenerObject ): Disposer;
+export function attachEventListener( source: GlobalEventHandlers, type: string, useCapture: boolean, listener: EventListenerOrEventListenerObject ): Disposer {
+    source.addEventListener( type, listener, useCapture );
+    return ( ) => {
+        source.removeEventListener( type, listener, useCapture );
+    };
 }

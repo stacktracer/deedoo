@@ -44,9 +44,11 @@ body > a#close-action {
     justify-content: space-between;
     align-items: center;
 }
-body > a#open-action:active,
-body > a#close-action:active {
-    background-color: rgb( 0,65,45 );
+body > a#open-action.pressed,
+body > a#open-action.posting,
+body > a#close-action.pressed,
+body > a#close-action.posting {
+        background-color: rgb( 0,65,45 );
 }
 body > a#raw-action {
     grid-column: 2 / span 1;
@@ -60,8 +62,9 @@ body > a#raw-action {
     flex-direction: column;
     text-align: center;
 }
-body > a#raw-action:active {
-    background-color: rgb( 117,32,35 );
+body > a#raw-action.pressed,
+body > a#raw-action.posting {
+        background-color: rgb( 117,32,35 );
 }
 body > a.disabled,
 body > a#open-action.disabled,
@@ -70,5 +73,5 @@ body > a#raw-action.disabled {
     pointer-events: none;
     touch-action: none;
     cursor: not-allowed;
-    background-color: rgb( 100,100,100 );
+    background-color: rgb( 190,190,190 );
 }
