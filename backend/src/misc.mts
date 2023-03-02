@@ -95,8 +95,13 @@ export function formatTs( ts: number | undefined ): string | undefined {
     return `${yyyy}-${mm}-${dd} ${HH}:${MM}:${SS}.${FFF} ${ZZZ}`;
 }
 
+export function getLogString( s: string ): string {
+    const time = formatTs( 1e-3*Date.now( ) );
+    return `[${time}] ${s}`;
+}
+
 export function doLog( s: string ): void {
-    console.log( '[' + formatTs( 1e-3*Date.now( ) ) + '] ' + s );
+    console.log( getLogString( s ) );
 }
 
 export function logListenAddr( addrInfo: AddressInfo, isHttps: boolean ) {
@@ -142,6 +147,7 @@ export function createAuthHandler( conf: HttpsConf ): RequestHandler {
         if ( req.headers.authorization ) {
             const [ username, password ] = parseAuthHeader( req.headers.authorization );
             if ( username && conf.auth[ username ] && password === conf.auth[ username ] ) {
+                doLog( `Accepting credentials: client = ${req.ip}, req = ${req.originalUrl}, user = ${username}` );
                 resp.cookie( 'user', username, {
                     sameSite: 'strict',
                     httpOnly: true,
@@ -152,12 +158,15 @@ export function createAuthHandler( conf: HttpsConf ): RequestHandler {
                 next( );
                 return;
             }
+            else {
+                doLog( `Rejecting credentials: client = ${req.ip}, req = ${req.originalUrl}, user = ${username}` );
+            }
         }
 
-        // Client provided neither a cookie nor credentials
+        // Client provided neither a cookie nor valid credentials
         resp.setHeader( 'WWW-Authenticate', 'Basic' );
         resp.status( 401 );
-        next( new Error( 'Not authenticated' ) );
+        next( getLogString( `Unauthenticated request: client = ${req.ip}, req = ${req.originalUrl}` ) );
     };
 }
 
