@@ -25,11 +25,11 @@ function addSseListeners( ): Disposer {
     } );
     disposers.add( attachEventSourceListener( eventSource, 'message', ev => {
         const msg = JSON.parse( ev.data ) as SseEvent;
-        setCssClassPresent( openedMessage, 'hidden', !( msg.connectedToDevice && msg.doorState === 'FULLY_OPENED' ) );
-        setCssClassPresent( closeButton, 'disabled', !( msg.connectedToDevice && !msg.cooldownState && msg.doorState === 'FULLY_OPENED' ) );
-        setCssClassPresent( rawButton, 'disabled', !( msg.connectedToDevice ) );
-        setCssClassPresent( openButton, 'disabled', !( msg.connectedToDevice && !msg.cooldownState && msg.doorState === 'FULLY_CLOSED' ) );
-        setCssClassPresent( closedMessage, 'hidden', !( msg.connectedToDevice && msg.doorState === 'FULLY_CLOSED' ) );
+        setCssClassPresent( openedMessage,   'hidden', !( msg.connectedToDevice &&                       msg.doorState === 'FULLY_OPENED' ) );
+        setCssClassPresent(   closeButton, 'disabled', !( msg.connectedToDevice && !msg.cooldownState && msg.doorState === 'FULLY_OPENED' ) );
+        setCssClassPresent(     rawButton, 'disabled', !( msg.connectedToDevice && !msg.cooldownState                                     ) );
+        setCssClassPresent(    openButton, 'disabled', !( msg.connectedToDevice && !msg.cooldownState && msg.doorState === 'FULLY_CLOSED' ) );
+        setCssClassPresent( closedMessage,   'hidden', !( msg.connectedToDevice &&                       msg.doorState === 'FULLY_CLOSED' ) );
     } ) );
     disposers.add( attachEventSourceListener( eventSource, 'error', ( ) => {
         setSseDisconnected( );

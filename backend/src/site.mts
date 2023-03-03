@@ -3,7 +3,7 @@ import { SSE } from 'express-sse';
 import fs from 'fs';
 import type { MqttClient } from 'mqtt';
 import { isDeepStrictEqual } from 'util';
-import { doLog, DoorState, formatTs, getDoorState, getRelayNotifyStates, getSensorNotifyStates, getSensorStatusStates, isShellyNotify, isShellyStatus, mqttOnMessage, sendShellyClick, sendShellyStatusRequest, setAsyncRepeating, setTimeout2, ShellySensorNum, SiteConf, SseEvent } from './misc.mjs';
+import { ClickConf, doLog, DoorState, formatTs, getDoorState, getRelayNotifyStates, getSensorNotifyStates, getSensorStatusStates, isShellyNotify, isShellyStatus, mqttOnMessage, sendShellyClick, sendShellyStatusRequest, setAsyncRepeating, setTimeout2, ShellySensorNum, SiteConf, SseEvent } from './misc.mjs';
 
 // TODO: Switch to Gleam Refs
 interface Model {
@@ -46,7 +46,7 @@ export async function createSite( siteConf: SiteConf, mqtt: MqttClient, logPrefi
         if ( setModelProp( 'connectedToDevice', connectedToDevice ) ) {
             if ( model.connectedToDevice ) {
                 log( 'CONNECTED to device' );
-                enterCooldown( conf.cooldownAfterConnect );
+                enterCooldown( conf.outputForClick );
             }
             else {
                 log( 'DISCONNECTED from device' );
@@ -54,17 +54,18 @@ export async function createSite( siteConf: SiteConf, mqtt: MqttClient, logPrefi
         }
     }
 
-    function enterCooldown( duration: number ): void {
-        const newEndTs = 1e-3*Date.now( ) + duration;
+    function enterCooldown( conf: ClickConf ): void {
+        const cooldownDuration = conf.duration + conf.cooldownMargin;
+        const newEndTs = 1e-3*Date.now( ) + cooldownDuration;
         const oldEndTs = model.activeCooldown?.endTs ?? Number.NEGATIVE_INFINITY;
         if ( newEndTs > oldEndTs ) {
             const cooldown = { endTs: newEndTs };
-            model.activeCooldown = cooldown;
+            setModelProp( 'activeCooldown', cooldown );
             setTimeout( ( ) => {
                 if ( model.activeCooldown === cooldown ) {
                     setModelProp( 'activeCooldown', undefined );
                 }
-            }, 1e3*duration );
+            }, 1e3*cooldownDuration );
         }
     }
 
@@ -108,7 +109,7 @@ export async function createSite( siteConf: SiteConf, mqtt: MqttClient, logPrefi
             for ( const [ relay, state ] of getRelayNotifyStates( json ) ) {
                 if ( relay === conf.outputForClick.relay && state === conf.outputForClick.state ) {
                     log( `Relay notify: relay = ${relay}` );
-                    enterCooldown( conf.cooldownAfterClick );
+                    enterCooldown( conf.outputForClick );
                 }
             }
         }
@@ -123,7 +124,7 @@ export async function createSite( siteConf: SiteConf, mqtt: MqttClient, logPrefi
         const priorDoorState = getDoorState( conf, sensorStates );
         const willExecute = ( !priorCooldown && priorDoorState === 'FULLY_CLOSED' );
         if ( willExecute ) {
-            enterCooldown( conf.cooldownAfterClick );
+            enterCooldown( conf.outputForClick );
             await sendShellyClick( mqtt, conf );
         }
         log( `${willExecute ? 'Executing' : 'Ignoring'} cmd OPEN: prior-cooldown = ${ formatTs( priorCooldown?.endTs ) }, prior-door-state = ${priorDoorState}` );
@@ -134,7 +135,7 @@ export async function createSite( siteConf: SiteConf, mqtt: MqttClient, logPrefi
         const priorDoorState = getDoorState( conf, sensorStates );
         const willExecute = ( !priorCooldown && priorDoorState === 'FULLY_OPENED' );
         if ( willExecute ) {
-            enterCooldown( conf.cooldownAfterClick );
+            enterCooldown( conf.outputForClick );
             await sendShellyClick( mqtt, conf );
         }
         log( `${willExecute ? 'Executing' : 'Ignoring'} cmd CLOSE: prior-cooldown = ${ formatTs( priorCooldown?.endTs ) }, prior-door-state = ${priorDoorState}` );
@@ -145,7 +146,7 @@ export async function createSite( siteConf: SiteConf, mqtt: MqttClient, logPrefi
         const priorDoorState = getDoorState( conf, sensorStates );
         const willExecute = true;
         if ( willExecute ) {
-            enterCooldown( conf.cooldownAfterClick );
+            enterCooldown( conf.outputForClick );
             await sendShellyClick( mqtt, conf );
         }
         log( `${willExecute ? 'Executing' : 'Ignoring'} cmd RAW_CLICK: prior-cooldown = ${ formatTs( priorCooldown?.endTs ) }, prior-door-state = ${priorDoorState}` );

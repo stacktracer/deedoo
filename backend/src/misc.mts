@@ -35,12 +35,17 @@ export interface SiteBackendConf {
     deviceName: string;
     inputForDoorFullyOpened: { sensor: ShellySensorNum, state: boolean };
     inputForDoorFullyClosed: { sensor: ShellySensorNum, state: boolean };
-    outputForClick: { relay: ShellyRelayNum, state: boolean, duration: number };
+    outputForClick: ClickConf;
 
     statusCheckInterval: number;
     statusCheckTimeout: number;
-    cooldownAfterConnect: number;
-    cooldownAfterClick: number;
+}
+
+export interface ClickConf {
+    relay: ShellyRelayNum;
+    state: boolean;
+    duration: number;
+    cooldownMargin: number;
 }
 
 export function isNullish( t: unknown ): t is null | undefined {
