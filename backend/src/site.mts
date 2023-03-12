@@ -119,7 +119,7 @@ export async function createSite( siteConf: SiteConf, mqtt: MqttClient, logPrefi
     const handler = express.Router( );
 
     // REST
-    handler.post( '/api/open', async ( _, resp ) => {
+    handler.post( '/api/open', async ( req, resp ) => {
         const priorCooldown = model.activeCooldown;
         const priorDoorState = getDoorState( conf, sensorStates );
         const willExecute = ( !priorCooldown && priorDoorState === 'FULLY_CLOSED' );
@@ -127,10 +127,10 @@ export async function createSite( siteConf: SiteConf, mqtt: MqttClient, logPrefi
             enterCooldown( conf.outputForClick );
             await sendShellyClick( mqtt, conf );
         }
-        log( `${willExecute ? 'Executing' : 'Ignoring'} cmd OPEN: prior-cooldown = ${ formatTs( priorCooldown?.endTs ) }, prior-door-state = ${priorDoorState}` );
+        log( `${willExecute ? 'Executing' : 'Ignoring'} cmd OPEN: user = ${ req.signedCookies[ 'user' ] }, prior-cooldown = ${ formatTs( priorCooldown?.endTs ) }, prior-door-state = ${priorDoorState}` );
         resp.status( 200 ).json( { actionTaken: willExecute, priorCooldown, priorDoorState } );
     } );
-    handler.post( '/api/close', async ( _, resp ) => {
+    handler.post( '/api/close', async ( req, resp ) => {
         const priorCooldown = model.activeCooldown;
         const priorDoorState = getDoorState( conf, sensorStates );
         const willExecute = ( !priorCooldown && priorDoorState === 'FULLY_OPENED' );
@@ -138,10 +138,10 @@ export async function createSite( siteConf: SiteConf, mqtt: MqttClient, logPrefi
             enterCooldown( conf.outputForClick );
             await sendShellyClick( mqtt, conf );
         }
-        log( `${willExecute ? 'Executing' : 'Ignoring'} cmd CLOSE: prior-cooldown = ${ formatTs( priorCooldown?.endTs ) }, prior-door-state = ${priorDoorState}` );
+        log( `${willExecute ? 'Executing' : 'Ignoring'} cmd CLOSE: user = ${ req.signedCookies[ 'user' ] }, prior-cooldown = ${ formatTs( priorCooldown?.endTs ) }, prior-door-state = ${priorDoorState}` );
         resp.status( 200 ).json( { actionTaken: willExecute, priorCooldown, priorDoorState } );
     } );
-    handler.post( '/api/raw-click', async ( _, resp ) => {
+    handler.post( '/api/raw-click', async ( req, resp ) => {
         const priorCooldown = model.activeCooldown;
         const priorDoorState = getDoorState( conf, sensorStates );
         const willExecute = true;
@@ -149,7 +149,7 @@ export async function createSite( siteConf: SiteConf, mqtt: MqttClient, logPrefi
             enterCooldown( conf.outputForClick );
             await sendShellyClick( mqtt, conf );
         }
-        log( `${willExecute ? 'Executing' : 'Ignoring'} cmd RAW_CLICK: prior-cooldown = ${ formatTs( priorCooldown?.endTs ) }, prior-door-state = ${priorDoorState}` );
+        log( `${willExecute ? 'Executing' : 'Ignoring'} cmd RAW_CLICK: user = ${ req.signedCookies[ 'user' ] }, prior-cooldown = ${ formatTs( priorCooldown?.endTs ) }, prior-door-state = ${priorDoorState}` );
         resp.status( 200 ).json( { actionTaken: willExecute, priorCooldown, priorDoorState } );
     } );
     handler.get( '/api/events', sse.init );
