@@ -3,7 +3,7 @@ import type { IClientOptions, MqttClient, OnMessageCallback } from 'mqtt';
 import type { AddressInfo } from 'net';
 import os from 'os';
 import url from 'url';
-import type { Disposer } from './disposer';
+import type { Disposer } from './disposer.mjs';
 
 export interface DeedooConf {
     https: HttpsConf;
