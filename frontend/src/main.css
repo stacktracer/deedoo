@@ -33,35 +33,25 @@ body > a#close-action {
     margin-block: 10px;
     padding-block: 30px;
     padding-inline: 25px;
-    background-color: rgb( 0,130,90 );
 
     border-radius: 12px;
     font: 48px sans-serif;
     text-decoration: none;
-    color: white;
 
     display: grid;
     grid-template-columns: auto auto auto;
     justify-content: space-between;
     align-items: center;
 }
-body > a#open-action.pressed,
-body > a#open-action.posting,
-body > a#close-action.pressed,
-body > a#close-action.posting {
-        background-color: rgb( 0,65,45 );
-}
 body > a#open-action.disabled,
 body > a#close-action.disabled {
     pointer-events: none;
     touch-action: none;
     cursor: not-allowed;
-    background-color: rgb( 190,190,190 );
 }
 
 body > span#site-title {
     font: 36px sans-serif;
-    color: rgb( 170,170,170 );
 
     display: flex;
     justify-content: center;
@@ -73,21 +63,111 @@ body > a#raw-action {
     grid-column: 2 / span 1;
 
     font: 16px sans-serif;
-    color: rgb( 235,108,112 );
 
     display: flex;
     justify-content: center;
     flex-direction: column;
     text-align: center;
 }
-body > a#raw-action.pressed,
-body > a#raw-action.posting {
-    color: rgb( 117,32,35 );
-}
 body > a#raw-action.disabled {
     pointer-events: none;
     touch-action: none;
     cursor: not-allowed;
-    color: rgb( 170,170,170 );
     text-decoration: none;
+}
+
+/* Light mode */
+@media ( prefers-color-scheme: light ) {
+    body {
+        background-color: rgb( 255,255,255 );
+    }
+
+    /* Current state text */
+    body > span#opened-state,
+    body > span#closed-state {
+        color: rgb( 0,0,0 );
+    }
+
+    /* Buttons */
+    body > a#open-action,
+    body > a#close-action {
+        color: rgb( 255,255,255 );
+        background-color: rgb( 0,130,90 );
+    }
+    body > a#open-action.pressed,
+    body > a#open-action.posting,
+    body > a#close-action.pressed,
+    body > a#close-action.posting {
+        background-color: rgb( 0,65,45 );
+    }
+    body > a#open-action.disabled,
+    body > a#close-action.disabled {
+        color: rgb( 255,255,255 );
+        background-color: rgb( 190,190,190 );
+    }
+
+    /* Door title */
+    body > span#site-title {
+        color: rgb( 170,170,170 );
+    }
+
+    /* Raw click link */
+    body > a#raw-action {
+        color: rgb( 235,108,112 );
+    }
+    body > a#raw-action.pressed,
+    body > a#raw-action.posting {
+        color: rgb( 117,32,35 );
+    }
+    body > a#raw-action.disabled {
+        color: rgb( 170,170,170 );
+    }
+}
+
+/* Anything other than light mode */
+@media not ( prefers-color-scheme: light ) {
+    body {
+        background-color: rgb( 0,0,0 );
+    }
+
+    /* Current state text */
+    body > span#opened-state,
+    body > span#closed-state {
+        color: rgb( 255,255,255 );
+    }
+
+    /* Buttons */
+    body > a#open-action,
+    body > a#close-action {
+        color: rgb( 255,255,255 );
+        background-color: rgb( 0,130,90 );
+    }
+    body > a#open-action.pressed,
+    body > a#open-action.posting,
+    body > a#close-action.pressed,
+    body > a#close-action.posting {
+        background-color: rgb( 0,65,45 );
+    }
+    body > a#open-action.disabled,
+    body > a#close-action.disabled {
+        color: rgb( 120,120,120 );
+        background-color: rgb( 65,65,65 );
+    }
+
+    /* Door title */
+    body > span#site-title {
+        color: rgb( 170,170,170 );
+    }
+
+    /* Raw click link */
+    body > a#raw-action {
+        color: rgb( 255,133,137 );
+    }
+    body > a#raw-action.pressed,
+    body > a#raw-action.posting {
+        color: rgb( 182,82,85 );
+    }
+    body > a#raw-action.disabled {
+        color: rgb( 170,170,170 );
+    }
 }
