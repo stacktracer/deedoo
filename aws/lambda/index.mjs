@@ -93,12 +93,14 @@ async function doHandleReq(event) {
     }
 }
 
-function withCacheControlNoStore(res) {
+function withResponseHeaders(res) {
     return {
         ...res,
         headers: {
             ...res.headers,
             'Cache-Control': 'no-store',
+            'Content-Security-Policy': "frame-ancestors 'none'",
+            'X-Frame-Options': 'deny',
         },
     };
 }
@@ -124,21 +126,21 @@ function getUnauthorizedResponse() {
 export const handler = async (event) => {
     if (!hasValidOrigin(event)) {
         let res = { statusCode: 403 };
-        res = withCacheControlNoStore(res);
+        res = withResponseHeaders(res);
         return res;
     }
     if (hasValidAuthCookie(event)) {
         let res = await doHandleReq(event);
-        res = withCacheControlNoStore(res);
+        res = withResponseHeaders(res);
         return res;
     }
     if (hasValidCredentials(event)) {
         let res = await doHandleReq(event);
         res = withCookie(res, createAuthCookie());
-        res = withCacheControlNoStore(res);
+        res = withResponseHeaders(res);
         return res;
     }
     let res = getUnauthorizedResponse();
-    res = withCacheControlNoStore(res);
+    res = withResponseHeaders(res);
     return res;
 };
