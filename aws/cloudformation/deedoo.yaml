@@ -1,0 +1,289 @@
+# NOT DEPLOYMENT-READY. This file has not been imported or deployed to AWS.
+# Live identifiers and private inputs are references or parameters with no defaults.
+# HTTPS certificate, DNS, deployment artifacts, and private inputs need separate handling.
+---
+Parameters:
+  LambdaFunctionName:
+    Type: String
+    Description: Lambda function physical name; supply outside this committed template.
+  DeviceThingName:
+    Type: String
+    Description: IoT thing name / device client identifier; supply outside this committed template.
+  DevicePolicyName:
+    Type: String
+    Description: IoT device policy physical name; supply outside this committed template.
+  LambdaLoggingPolicyName:
+    Type: String
+    Description: Customer-managed logging policy physical name; supply outside this committed template.
+  LambdaExecutionRoleName:
+    Type: String
+    Description: Lambda execution role physical name; supply outside this committed template.
+  LambdaMqttPolicyName:
+    Type: String
+    Description: Name of the inline MQTT policy embedded in the Lambda execution role.
+  HttpApiName:
+    Type: String
+    Description: HTTP API display name; supply outside this committed template.
+  CustomDomainName:
+    Type: String
+    Description: API custom domain hostname, without scheme or path; supply outside this committed template.
+  AcmCertificateArn:
+    Type: String
+    Description: ARN of an externally managed ACM certificate for the regional custom domain.
+  DeviceCertificatePem:
+    Type: String
+    Description: Public IoT device certificate PEM, NOT its private key; supply outside this committed template.
+    NoEcho: true
+  SessionSecret:
+    Type: String
+    Description: Application session-signing secret; provide securely, never as a committed default.
+    NoEcho: true
+  UsersJson:
+    Type: String
+    Description: Application USERS environment variable as JSON; provide securely, never as a committed default.
+    NoEcho: true
+  LambdaCodeS3ObjectStorageMode:
+    Type: String
+    NoEcho: true
+    Description: Exported write-only input. Review whether to set COPY or REFERENCE, or omit this property.
+  LambdaCodeInlineSource:
+    Type: String
+    NoEcho: true
+    Description: 'Exported alternative: inline Lambda source. Remove if using an S3 ZIP package or container image.'
+  LambdaCodeSourceKMSKeyArn:
+    Type: String
+    NoEcho: true
+    Description: 'Exported optional input: customer-managed key for the deployment ZIP. Remove if not used.'
+  LambdaCodeS3ObjectVersion:
+    Type: String
+    NoEcho: true
+    Description: 'Exported optional input: deployment ZIP object version. Remove if not used.'
+  LambdaCodeImageUri:
+    Type: String
+    NoEcho: true
+    Description: 'Exported alternative: container image URI. Remove for the currently declared Zip package type.'
+  LambdaCodeS3Key:
+    Type: String
+    NoEcho: true
+    Description: 'Exported input: S3 object key for the deployment ZIP. Review together with the other Code properties.'
+  LambdaCodeS3Bucket:
+    Type: String
+    NoEcho: true
+    Description: 'Exported input: deployment ZIP bucket in the Lambda region. Review together with the other Code
+      properties.'
+Resources:
+  LambdaFunction:
+    UpdateReplacePolicy: Retain
+    Type: AWS::Lambda::Function
+    DeletionPolicy: Retain
+    Properties:
+      MemorySize: 128
+      Description: ''
+      TracingConfig:
+        Mode: PassThrough
+      Timeout: 3
+      RuntimeManagementConfig:
+        UpdateRuntimeOn: Auto
+      Handler: index.handler
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Role: !GetAtt LambdaExecutionRole.Arn
+      FileSystemConfigs: []
+      FunctionName: !Ref LambdaFunctionName
+      Runtime: nodejs24.x
+      PackageType: Zip
+      LoggingConfig:
+        LogFormat: Text
+        LogGroup: !Sub '/aws/lambda/${LambdaFunctionName}'
+      RecursiveLoop: Terminate
+      Environment:
+        Variables:
+          SESSION_SECRET: !Ref SessionSecret
+          USERS: !Ref UsersJson
+          REQUIRED_ORIGIN: !Sub 'https://${ApiDomainName}'
+      EphemeralStorage:
+        Size: 512
+      Architectures:
+        - x86_64
+  DeviceThing:
+    UpdateReplacePolicy: Retain
+    Type: AWS::IoT::Thing
+    DeletionPolicy: Retain
+    Properties:
+      AttributePayload: {}
+      ThingName: !Ref DeviceThingName
+  DefaultStage:
+    UpdateReplacePolicy: Retain
+    Type: AWS::ApiGatewayV2::Stage
+    DeletionPolicy: Retain
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: $default
+      AutoDeploy: true
+    DependsOn: DefaultRoute
+  DevicePolicy:
+    UpdateReplacePolicy: Retain
+    Type: AWS::IoT::Policy
+    DeletionPolicy: Retain
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Condition:
+              Bool:
+                iot:Connection.Thing.IsAttached: 'true'
+            # Exclamation mark means the var gets resolved by IoT, not CloudFormation
+            Resource: !Sub 'arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:client/${!iot:Connection.Thing.ThingName}'
+            Action: iot:Connect
+            Effect: Allow
+          - Resource: !Sub 'arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/*'
+            Action: iot:Subscribe
+            Effect: Allow
+          - Resource: !Sub 'arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topic/*'
+            Action:
+              - iot:Publish
+              - iot:RetainPublish
+              - iot:Receive
+            Effect: Allow
+      Tags: []
+      PolicyName: !Ref DevicePolicyName
+  DeviceCertificate:
+    UpdateReplacePolicy: Retain
+    Type: AWS::IoT::Certificate
+    DeletionPolicy: Retain
+    Properties:
+      Status: ACTIVE
+      CertificateMode: DEFAULT
+      CertificatePem: !Ref DeviceCertificatePem
+  DeviceThingAttachment:
+    UpdateReplacePolicy: Retain
+    Type: AWS::IoT::ThingPrincipalAttachment
+    DeletionPolicy: Retain
+    Properties:
+      ThingName: !Ref DeviceThing
+      Principal: !GetAtt DeviceCertificate.Arn
+  DevicePolicyAttachment:
+    UpdateReplacePolicy: Retain
+    Type: AWS::IoT::PolicyPrincipalAttachment
+    DeletionPolicy: Retain
+    Properties:
+      PolicyName: !Ref DevicePolicy
+      Principal: !GetAtt DeviceCertificate.Arn
+  LambdaLoggingPolicy:
+    UpdateReplacePolicy: Retain
+    Type: AWS::IAM::ManagedPolicy
+    DeletionPolicy: Retain
+    Properties:
+      ManagedPolicyName: !Ref LambdaLoggingPolicyName
+      Path: /service-role/
+      Description: ''
+      Groups: []
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*'
+            Action: logs:CreateLogGroup
+            Effect: Allow
+          - Resource:
+              - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${LambdaFunctionName}:*'
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Effect: Allow
+      Users: []
+  ApiMapping:
+    UpdateReplacePolicy: Retain
+    Type: AWS::ApiGatewayV2::ApiMapping
+    DeletionPolicy: Retain
+    Properties:
+      Stage: !Ref DefaultStage
+      ApiMappingKey: ''
+      DomainName: !Ref ApiDomainName
+      ApiId: !Ref HttpApi
+  LambdaExecutionRole:
+    UpdateReplacePolicy: Retain
+    Type: AWS::IAM::Role
+    DeletionPolicy: Retain
+    Properties:
+      Path: /service-role/
+      ManagedPolicyArns:
+        - !Ref LambdaLoggingPolicy
+      MaxSessionDuration: 3600
+      RoleName: !Ref LambdaExecutionRoleName
+      Policies:
+        - PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Resource: !Sub 'arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topic/*'
+                Action:
+                  - iot:Publish
+                  - iot:GetRetainedMessage
+                Effect: Allow
+          PolicyName: !Ref LambdaMqttPolicyName
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+  HttpApi:
+    UpdateReplacePolicy: Retain
+    Type: AWS::ApiGatewayV2::Api
+    DeletionPolicy: Retain
+    Properties:
+      IpAddressType: ipv4
+      RouteSelectionExpression: $request.method $request.path
+      DisableExecuteApiEndpoint: false
+      ProtocolType: HTTP
+      Tags: {}
+      Name: !Ref HttpApiName
+  ApiInvokePermission:
+    UpdateReplacePolicy: Retain
+    Type: AWS::Lambda::Permission
+    DeletionPolicy: Retain
+    Properties:
+      FunctionName: !GetAtt LambdaFunction.Arn
+      Action: lambda:InvokeFunction
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/$default'
+      Principal: apigateway.amazonaws.com
+  ApiDomainName:
+    UpdateReplacePolicy: Retain
+    Type: AWS::ApiGatewayV2::DomainName
+    DeletionPolicy: Retain
+    Properties:
+      RoutingMode: API_MAPPING_ONLY
+      DomainNameConfigurations:
+        - IpAddressType: ipv4
+          EndpointType: REGIONAL
+          SecurityPolicy: TLS_1_2
+          CertificateArn: !Ref AcmCertificateArn
+      DomainName: !Ref CustomDomainName
+      Tags: {}
+  DefaultRoute:
+    UpdateReplacePolicy: Retain
+    Type: AWS::ApiGatewayV2::Route
+    DeletionPolicy: Retain
+    Properties:
+      Target: !Sub 'integrations/${LambdaIntegration}'
+      RequestModels: {}
+      AuthorizationScopes: []
+      ApiKeyRequired: false
+      RouteKey: $default
+      AuthorizationType: NONE
+      ApiId: !Ref HttpApi
+  LambdaIntegration:
+    UpdateReplacePolicy: Retain
+    Type: AWS::ApiGatewayV2::Integration
+    DeletionPolicy: Retain
+    Properties:
+      IntegrationUri: !GetAtt LambdaFunction.Arn
+      PayloadFormatVersion: '2.0'
+      ConnectionType: INTERNET
+      RequestTemplates: {}
+      ResponseParameters: {}
+      TimeoutInMillis: 30000
+      ApiId: !Ref HttpApi
+      IntegrationMethod: POST
+      IntegrationType: AWS_PROXY

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>KHH Garage</title>
+    <link rel="stylesheet" href="../app.css">
+</head>
+<body>
+    <span id="opened-state" class="hidden">Door is Open</span>
+    <a id="close-action" href="#" class="disabled"><span>↓</span><span>Close</span><span>↓</span></a>
+    <span class="spacer"></span>
+    <span id="site-title">KHH Garage</span>
+    <a id="raw-action" href="#" class="disabled">Raw&nbsp;Click</a>
+    <span class="spacer"></span>
+    <a id="open-action" href="#" class="disabled"><span>↑</span><span>Open</span><span>↑</span></a>
+    <span id="closed-state" class="hidden">Door is Closed</span>
+    <span class="spacer"></span>
+    <script type="module">
+        import { attachUi } from '../app.mjs';
+        attachUi('../api/khh');
+    </script>
+</body>
+</html>
