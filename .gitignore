@@ -1,5 +1,4 @@
 node_modules/
 build/
 nohup.out
-
-/backend/conf.mjs
+conf.mjs
