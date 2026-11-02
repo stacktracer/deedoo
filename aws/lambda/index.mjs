@@ -60,7 +60,11 @@ async function doHandleReq(event) {
                     case 'POST': {
                         await iot.send(new PublishCommand({
                             topic: `${topicPrefix}/door-command`,
-                            payload: Buffer.from(JSON.stringify({ id: randomUUID(), action: 'open' })),
+                            payload: Buffer.from(JSON.stringify({
+                                createdPmillis: Date.now(),
+                                id: randomUUID(),
+                                action: 'open',
+                            })),
                             qos: 0,
                             retain: false,
                         }));
@@ -76,7 +80,11 @@ async function doHandleReq(event) {
                     case 'POST': {
                         await iot.send(new PublishCommand({
                             topic: `${topicPrefix}/door-command`,
-                            payload: Buffer.from(JSON.stringify({ id: randomUUID(), action: 'close' })),
+                            payload: Buffer.from(JSON.stringify({
+                                createdPmillis: Date.now(),
+                                id: randomUUID(),
+                                action: 'close',
+                            })),
                             qos: 0,
                             retain: false,
                         }));
@@ -92,7 +100,11 @@ async function doHandleReq(event) {
                     case 'POST': {
                         await iot.send(new PublishCommand({
                             topic: `${topicPrefix}/door-command`,
-                            payload: Buffer.from(JSON.stringify({ id: randomUUID(), action: 'click' })),
+                            payload: Buffer.from(JSON.stringify({
+                                createdPmillis: Date.now(),
+                                id: randomUUID(),
+                                action: 'click',
+                            })),
                             qos: 0,
                             retain: false,
                         }));

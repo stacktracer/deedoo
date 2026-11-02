@@ -1,6 +1,7 @@
 let clickSwitchId = 0;
 let clickDurationSec = 2;
 let numRecentCmdIds = 16;
+let maxCmdAgeMillis = 5000;
 
 function getDoorState() {
     let sensor0 = Shelly.getComponentStatus('input', 0);
@@ -21,6 +22,9 @@ function getDoorState() {
 function parseCommand(payload) {
     let cmd = JSON.parse(payload);
     if (!cmd) {
+        throw new Error();
+    }
+    if (typeof cmd.createdPmillis !== 'number' || !isFinite(cmd.createdPmillis)) {
         throw new Error();
     }
     if (typeof cmd.id !== 'string' || cmd.id.length !== 36) {
@@ -54,8 +58,15 @@ function initMqtt(config, errorCode, errorMsg) {
     function doClick() {
         let nowUptimeMs = Shelly.getUptimeMs();
         if (nowUptimeMs >= cooldownEndUptimeMs) {
-            // TODO: Handle failures
-            Shelly.call('Switch.Set', { id: clickSwitchId, on: true });
+            Shelly.call(
+                'Switch.Set',
+                { id: clickSwitchId, on: true },
+                function (result, errorCode, errorMsg) {
+                    if (errorCode !== 0) {
+                        print('Switch.Set failed:', errorMsg);
+                    }
+                },
+            );
             cooldownEndUptimeMs = nowUptimeMs + 1000 * clickDurationSec + 200;
             publishState();
         }
@@ -88,8 +99,25 @@ function initMqtt(config, errorCode, errorMsg) {
             return;
         }
 
+        // Ignore time-late commands
+        let sys = Shelly.getComponentStatus('sys');
+        if (!sys || typeof sys.unixtime !== 'number') {
+            print('Ignoring door command because device clock is not synced');
+            return;
+        }
+        let cmdAgeMillis = sys.unixtime*1000 - cmd.createdPmillis;
+        if (cmdAgeMillis > maxCmdAgeMillis) {
+            print('Ignoring time-late door command');
+            return;
+        }
+        if (cmdAgeMillis < -maxCmdAgeMillis) {
+            print('Ignoring door command from the future');
+            return;
+        }
+
         // Ignore commands we've seen recently
         if (recentCmdIds.indexOf(cmd.id) !== -1) {
+            print('Ignoring duplicate door command');
             return;
         }
 
