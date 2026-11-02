@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { IoTDataPlaneClient, PublishCommand, GetRetainedMessageCommand } from '@aws-sdk/client-iot-data-plane';
 import { createAuthCookie, hasValidAuthCookie } from './securityAuthCookie.mjs';
 import { hasValidCredentials } from './securityBasicAuth.mjs';
@@ -19,9 +20,11 @@ async function doHandleReq(event) {
         switch (pathInDoor) {
             case 'door-state': {
                 switch (method) {
-                    case 'GET':
+                    case 'GET': {
                         try {
-                            const result = await iot.send(new GetRetainedMessageCommand({ topic: `${topicPrefix}/door-state` }));
+                            const result = await iot.send(new GetRetainedMessageCommand({
+                                topic: `${topicPrefix}/door-state`,
+                            }));
                             const timePmillis = result.lastModifiedTime;
                             const ageMillis = Date.now() - timePmillis;
                             const msg = JSON.parse(Buffer.from(result.payload).toString('utf8'));
@@ -46,35 +49,58 @@ async function doHandleReq(event) {
                                 throw e;
                             }
                         }
-                    default:
+                    }
+                    default: {
                         return { statusCode: 405, headers: { Allow: 'GET' } };
+                    }
                 }
             }
             case 'open-door': {
                 switch (method) {
-                    case 'POST':
-                        await iot.send(new PublishCommand({ topic: `${topicPrefix}/open-door` }));
+                    case 'POST': {
+                        await iot.send(new PublishCommand({
+                            topic: `${topicPrefix}/door-command`,
+                            payload: Buffer.from(JSON.stringify({ id: randomUUID(), action: 'open' })),
+                            qos: 0,
+                            retain: false,
+                        }));
                         return { statusCode: 200 };
-                    default:
+                    }
+                    default: {
                         return { statusCode: 405, headers: { Allow: 'POST' } };
+                    }
                 }
             }
             case 'close-door': {
                 switch (method) {
-                    case 'POST':
-                        await iot.send(new PublishCommand({ topic: `${topicPrefix}/close-door` }));
+                    case 'POST': {
+                        await iot.send(new PublishCommand({
+                            topic: `${topicPrefix}/door-command`,
+                            payload: Buffer.from(JSON.stringify({ id: randomUUID(), action: 'close' })),
+                            qos: 0,
+                            retain: false,
+                        }));
                         return { statusCode: 200 };
-                    default:
+                    }
+                    default: {
                         return { statusCode: 405, headers: { Allow: 'POST' } };
+                    }
                 }
             }
             case 'raw-click': {
                 switch (method) {
-                    case 'POST':
-                        await iot.send(new PublishCommand({ topic: `${topicPrefix}/click` }));
+                    case 'POST': {
+                        await iot.send(new PublishCommand({
+                            topic: `${topicPrefix}/door-command`,
+                            payload: Buffer.from(JSON.stringify({ id: randomUUID(), action: 'click' })),
+                            qos: 0,
+                            retain: false,
+                        }));
                         return { statusCode: 200 };
-                    default:
+                    }
+                    default: {
                         return { statusCode: 405, headers: { Allow: 'POST' } };
+                    }
                 }
             }
             default: {
