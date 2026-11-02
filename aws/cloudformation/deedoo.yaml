@@ -42,26 +42,6 @@ Parameters:
     Type: String
     Description: Application USERS environment variable as JSON; provide securely, never as a committed default.
     NoEcho: true
-  LambdaCodeS3ObjectStorageMode:
-    Type: String
-    NoEcho: true
-    Description: Exported write-only input. Review whether to set COPY or REFERENCE, or omit this property.
-  LambdaCodeInlineSource:
-    Type: String
-    NoEcho: true
-    Description: 'Exported alternative: inline Lambda source. Remove if using an S3 ZIP package or container image.'
-  LambdaCodeSourceKMSKeyArn:
-    Type: String
-    NoEcho: true
-    Description: 'Exported optional input: customer-managed key for the deployment ZIP. Remove if not used.'
-  LambdaCodeS3ObjectVersion:
-    Type: String
-    NoEcho: true
-    Description: 'Exported optional input: deployment ZIP object version. Remove if not used.'
-  LambdaCodeImageUri:
-    Type: String
-    NoEcho: true
-    Description: 'Exported alternative: container image URI. Remove for the currently declared Zip package type.'
   LambdaCodeS3Key:
     Type: String
     NoEcho: true
@@ -69,8 +49,7 @@ Parameters:
   LambdaCodeS3Bucket:
     Type: String
     NoEcho: true
-    Description: 'Exported input: deployment ZIP bucket in the Lambda region. Review together with the other Code
-      properties.'
+    Description: 'Exported input: deployment ZIP bucket in the Lambda region. Review together with the other Code properties.'
 Resources:
   LambdaFunction:
     UpdateReplacePolicy: Retain
@@ -121,6 +100,9 @@ Resources:
       ApiId: !Ref HttpApi
       StageName: $default
       AutoDeploy: true
+      DefaultRouteSettings:
+        ThrottlingRateLimit: 100
+        ThrottlingBurstLimit: 20
     DependsOn: DefaultRoute
   DevicePolicy:
     UpdateReplacePolicy: Retain
@@ -137,14 +119,18 @@ Resources:
             Resource: !Sub 'arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:client/${!iot:Connection.Thing.ThingName}'
             Action: iot:Connect
             Effect: Allow
-          - Resource: !Sub 'arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/*'
+          - Resource: !Sub 'arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/${!iot:Connection.Thing.ThingName}/door-command'
             Action: iot:Subscribe
             Effect: Allow
-          - Resource: !Sub 'arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topic/*'
+          - Resource: !Sub 'arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topic/${!iot:Connection.Thing.ThingName}/door-command'
+            Action: iot:Receive
+            Effect: Allow
+          - Resource:
+              - !Sub 'arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topic/${!iot:Connection.Thing.ThingName}/online'
+              - !Sub 'arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topic/${!iot:Connection.Thing.ThingName}/door-state'
             Action:
               - iot:Publish
               - iot:RetainPublish
-              - iot:Receive
             Effect: Allow
       Tags: []
       PolicyName: !Ref DevicePolicyName
@@ -215,10 +201,15 @@ Resources:
         - PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              - Resource: !Sub 'arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topic/*'
-                Action:
-                  - iot:Publish
-                  - iot:GetRetainedMessage
+              - Resource:
+                  - !Sub 'arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topic/deedoo-shelly-mah/door-state'
+                  - !Sub 'arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topic/deedoo-shelly-khh/door-state'
+                Action: iot:GetRetainedMessage
+                Effect: Allow
+              - Resource:
+                  - !Sub 'arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topic/deedoo-shelly-mah/door-command'
+                  - !Sub 'arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topic/deedoo-shelly-khh/door-command'
+                Action: iot:Publish
                 Effect: Allow
           PolicyName: !Ref LambdaMqttPolicyName
       AssumeRolePolicyDocument:

@@ -97,7 +97,7 @@ export function attachUi(apiPrefix) {
     function getCurrentPollingIntervalMillis() {
         // Opening typically takes about 12s, closing typically takes about 14s
         const fastPolling = (Date.now() <= latestLocalClickPmillis + 20000);
-        return (fastPolling ? 10 : 1000);
+        return (fastPolling ? 50 : 1000);
     }
     function doUpdateUi() {
         const isDeviceConnected = (latestDoorState.ageMillis <= 75000);
