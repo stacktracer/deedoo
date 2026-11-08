@@ -226,7 +226,7 @@ Resources:
     Properties:
       IpAddressType: ipv4
       RouteSelectionExpression: $request.method $request.path
-      DisableExecuteApiEndpoint: false
+      DisableExecuteApiEndpoint: true
       ProtocolType: HTTP
       Tags: {}
       Name: !Ref HttpApiName
